@@ -1,0 +1,245 @@
+{
+  "info": {
+    "name": "Ecommerce Backend - Auth, Products, Cart, Users",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "ecommerce-backend-collection"
+  },
+  "item": [
+    { "name": "Health", "request": { "method": "GET", "url": "{{baseUrl}}/healthz" }, "response": [] },
+
+    {
+      "name": "Register",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"name\": \"Isaac Test\",\n  \"email\": \"isaac.trpctest1@example.com\",\n  \"password\": \"senha123\"\n}" },
+        "url": "{{baseUrl}}/api/auth/register"
+      },
+      "response": []
+    },
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"email\": \"isaac.trpctest1@example.com\",\n  \"password\": \"senha123\"\n}" },
+        "url": "{{baseUrl}}/api/auth/login"
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "exec": ["const json = pm.response.json();", "pm.collectionVariables.set('token', json.token);"] } }]
+    },
+    {
+      "name": "Me",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/auth/me"
+      },
+      "response": []
+    },
+
+    { "name": "Categories", "request": { "method": "GET", "url": "{{baseUrl}}/api/categories" }, "response": [] },
+    {
+      "name": "Products - List",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/products?category={{category}}&limit={{limit}}&page={{page}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "products"],
+          "query": [
+            { "key": "category", "value": "{{category}}" },
+            { "key": "limit", "value": "{{limit}}" },
+            { "key": "page", "value": "{{page}}" }
+          ]
+        }
+      },
+      "response": []
+    },
+    { "name": "Products - ById", "request": { "method": "GET", "url": "{{baseUrl}}/api/products/{{productId}}" }, "response": [] },
+
+    {
+      "name": "Cart - Get",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/cart"
+      },
+      "response": []
+    },
+    {
+      "name": "Cart - Summary",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/cart/summary"
+      },
+      "response": []
+    },
+    {
+      "name": "Cart - Add Item",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 1,\n  \"variantId\": \"{{variantId}}\"\n}" },
+        "url": "{{baseUrl}}/api/cart/items"
+      },
+      "response": []
+    },
+    {
+      "name": "Cart - Update Quantity",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"quantity\": 2\n}" },
+        "url": "{{baseUrl}}/api/cart/items/{{itemId}}"
+      },
+      "response": []
+    },
+    {
+      "name": "Cart - Remove Item",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/cart/items/{{itemId}}"
+      },
+      "response": []
+    },
+    {
+      "name": "Cart - Clear",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/cart"
+      },
+      "response": []
+    },
+
+    {
+      "name": "Checkout - Create",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/checkout"
+      },
+      "response": []
+    },
+    {
+      "name": "Orders - List",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/orders"
+      },
+      "response": []
+    },
+    {
+      "name": "Orders - ById",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/orders/{{orderId}}"
+      },
+      "response": []
+    },
+
+    {
+      "name": "Admin - Categories - Create",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/admin/categories",
+        "body": { "mode": "raw", "raw": "{\n  \"name\": \"Acessórios\"\n}" }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin - Categories - Update",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/admin/categories/{{categoryId}}",
+        "body": { "mode": "raw", "raw": "{\n  \"name\": \"Acessórios & Gadgets\"\n}" }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin - Categories - Delete",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/admin/categories/{{categoryId}}"
+      },
+      "response": []
+    },
+
+    {
+      "name": "Admin - Products - Create",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/admin/products",
+        "body": { "mode": "raw", "raw": "{\n  \"name\": \"Capinha de Celular\",\n  \"description\": \"Capinha transparente com proteção extra\",\n  \"price\": 49.9,\n  \"discount\": 0,\n  \"stock\": 100,\n  \"images\": [],\n  \"categoryId\": \"{{categoryId}}\"\n}" }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin - Products - Update",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/admin/products/{{productId}}",
+        "body": { "mode": "raw", "raw": "{\n  \"price\": 59.9,\n  \"stock\": 120\n}" }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin - Products - Delete",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/admin/products/{{productId}}"
+      },
+      "response": []
+    },
+
+    {
+      "name": "Users - List (ADMIN)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/users"
+      },
+      "response": []
+    },
+    {
+      "name": "Users - Create (ADMIN)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"name\": \"Novo Usuário\",\n  \"email\": \"novo.user@example.com\",\n  \"password\": \"senha123\"\n}" },
+        "url": "{{baseUrl}}/api/users"
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3001" },
+    { "key": "token", "value": "" },
+    { "key": "productId", "value": "" },
+    { "key": "itemId", "value": "" },
+    { "key": "category", "value": "" },
+    { "key": "limit", "value": "20" },
+    { "key": "page", "value": "1" },
+    { "key": "variantId", "value": "" }
+  ]
+}

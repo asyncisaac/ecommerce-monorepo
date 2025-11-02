@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.container-page {
+  container-type: inline-size;
+  container-name: page;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.card {
+  border-radius: 0.75rem;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  background: #ffffff;
+  box-shadow: 0 8px 20px -8px rgb(0 0 0 / 0.18);
+}
+
+/* Botões */
+.btn-primary {
+  @apply inline-flex items-center justify-center px-6 py-2.5 bg-black text-white rounded-full font-medium hover:bg-black/90 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98];
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center px-6 py-2.5 bg-black/5 text-black rounded-full font-medium hover:bg-black/10 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98];
+}
+
+/* Inputs e Selects */
+.form-input {
+  @apply w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 outline-none transition-all duration-200 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 hover:border-white/20;
+}
+
+.form-select {
+  @apply w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 outline-none transition-all duration-200 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 hover:border-white/20 cursor-pointer;
+}
+
+/* Microinterações para cards */
+.card-hover {
+  @apply transition-all duration-300 hover:scale-[1.02] hover:shadow-lg;
+}
+
+/* Estados de foco suaves */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:ring-offset-2 focus:ring-offset-transparent transition-all duration-200;
+}
+
+.skeleton {
+  border-radius: 0.75rem;
+  background: #f3f4f6;
+  animation: pulse 1.8s ease-in-out infinite;
+}
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
