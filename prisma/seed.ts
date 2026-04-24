@@ -1,10 +1,60 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log('🌱 Iniciando seed do banco...');
+
+  const roundsRaw = Number(process.env.BCRYPT_ROUNDS ?? '12');
+  const rounds = Number.isFinite(roundsRaw) && roundsRaw >= 10 && roundsRaw <= 14 ? roundsRaw : 12;
+
+  const testUserPassword = await bcrypt.hash('senha123', rounds);
+  const adminPassword = await bcrypt.hash('admin123', rounds);
+
+  const [testUser, adminUser] = await Promise.all([
+    prisma.user.upsert({
+      where: { email: 'test.user1@example.com' },
+      update: { name: 'Usuário Teste', password: testUserPassword, role: 'CUSTOMER' },
+      create: { email: 'test.user1@example.com', name: 'Usuário Teste', password: testUserPassword, role: 'CUSTOMER' },
+      select: { id: true, email: true, role: true },
+    }),
+    prisma.user.upsert({
+      where: { email: 'admin@example.com' },
+      update: { name: 'Admin', password: adminPassword, role: 'ADMIN' },
+      create: { email: 'admin@example.com', name: 'Admin', password: adminPassword, role: 'ADMIN' },
+      select: { id: true, email: true, role: true },
+    }),
+  ]);
+
+  await Promise.all([
+    prisma.address.upsert({
+      where: { id: `seed-default-address-${testUser.id}` },
+      update: {
+        userId: testUser.id,
+        street: 'Rua Exemplo, 123',
+        city: 'São Paulo',
+        state: 'SP',
+        zipCode: '01000-000',
+        country: 'Brasil',
+        isDefault: true,
+      },
+      create: {
+        id: `seed-default-address-${testUser.id}`,
+        userId: testUser.id,
+        street: 'Rua Exemplo, 123',
+        city: 'São Paulo',
+        state: 'SP',
+        zipCode: '01000-000',
+        country: 'Brasil',
+        isDefault: true,
+      },
+    }),
+  ]);
+
+  console.log(`👤 Usuário teste: ${testUser.email} (senha: senha123)`);
+  console.log(`👑 Admin: ${adminUser.email} (senha: admin123)`);
 
   // Categorias
   const categorias = [

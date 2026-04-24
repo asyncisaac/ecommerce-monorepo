@@ -1,19 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import request from 'supertest';
-import { base, login } from './helpers';
+import { request, login, hasDb } from './helpers';
 
 // Estes testes cobrem CRUD ADMIN de categorias e produtos
 
-describe('ADMIN CRUD - Categorias e Produtos', () => {
+describe.skipIf(!hasDb)('ADMIN CRUD - Categorias e Produtos', () => {
   it('cria, atualiza, lista e remove categoria e produto', async () => {
-    const { headers } = await login('test.user1@example.com', 'senha123');
+    const { headers } = await login('admin@example.com', 'admin123');
 
     const suffix = Date.now();
     const catName = `Cat-${suffix}`;
     const catNameUpdated = `CatUpdated-${suffix}`;
 
     // Criar categoria
-    const createCat = await request(base)
+    const createCat = await request
       .post('/api/admin/categories')
       .set(headers)
       .set('Content-Type', 'application/json')
@@ -24,7 +23,7 @@ describe('ADMIN CRUD - Categorias e Produtos', () => {
     expect(category?.name).toBe(catName);
 
     // Atualizar categoria
-    const updateCat = await request(base)
+    const updateCat = await request
       .patch(`/api/admin/categories/${category.id}`)
       .set(headers)
       .set('Content-Type', 'application/json')
@@ -35,7 +34,7 @@ describe('ADMIN CRUD - Categorias e Produtos', () => {
 
     // Criar produto
     const prodName = `Produto-${suffix}`;
-    const createProd = await request(base)
+    const createProd = await request
       .post('/api/admin/products')
       .set(headers)
       .set('Content-Type', 'application/json')
@@ -55,7 +54,7 @@ describe('ADMIN CRUD - Categorias e Produtos', () => {
     expect(product?.categoryId).toBe(category.id);
 
     // Atualizar produto
-    const updateProd = await request(base)
+    const updateProd = await request
       .patch(`/api/admin/products/${product.id}`)
       .set(headers)
       .set('Content-Type', 'application/json')
@@ -66,7 +65,7 @@ describe('ADMIN CRUD - Categorias e Produtos', () => {
     expect(productUpdated?.stock).toBe(120);
 
     // Listar por categoria
-    const listByCat = await request(base)
+    const listByCat = await request
       .get(`/api/products?category=${encodeURIComponent(categoryUpdated.name)}`)
       .set(headers);
     expect(listByCat.statusCode).toBe(200);
@@ -76,14 +75,14 @@ describe('ADMIN CRUD - Categorias e Produtos', () => {
     expect(found?.id).toBe(product.id);
 
     // Remover produto
-    const delProd = await request(base)
+    const delProd = await request
       .delete(`/api/admin/products/${product.id}`)
       .set(headers);
     expect(delProd.statusCode).toBe(200);
     expect(delProd.body?.id).toBe(product.id);
 
     // Remover categoria
-    const delCat = await request(base)
+    const delCat = await request
       .delete(`/api/admin/categories/${category.id}`)
       .set(headers);
     expect(delCat.statusCode).toBe(200);

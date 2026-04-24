@@ -59,9 +59,9 @@ export default function ProductDetailsClient({ product }: { product: Product }) 
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
       {/* Imagem grande à esquerda com hover zoom */}
       <div>
-        <div className="group bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="group rounded-2xl overflow-hidden ring-1 ring-black/10 bg-white dark:bg-white/5 dark:ring-white/15">
           <SafeImage
-            src={currentImage}
+            src={currentImage || "/placeholder.svg"}
             alt={product.name}
             className="w-full aspect-square object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
@@ -73,7 +73,11 @@ export default function ProductDetailsClient({ product }: { product: Product }) 
                 key={img}
                 type="button"
                 onClick={() => setCurrentImage(img)}
-                className={`h-14 w-14 rounded-xl overflow-hidden border ${currentImage === img ? "border-black" : "border-gray-200"}`}
+                className={`h-14 w-14 rounded-xl overflow-hidden border ${
+                  currentImage === img
+                    ? "border-black dark:border-white"
+                    : "border-black/10 dark:border-white/15"
+                }`}
                 aria-label="Escolher imagem"
               >
                 <SafeImage src={img} alt={product.name} className="h-full w-full object-cover" />
@@ -88,7 +92,7 @@ export default function ProductDetailsClient({ product }: { product: Product }) 
         <div>
           <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">{product.name}</h1>
           {product.description && (
-            <p className="mt-3 text-gray-600 text-lg leading-relaxed">{product.description}</p>
+            <p className="mt-3 text-black/60 dark:text-white/70 text-lg leading-relaxed">{product.description}</p>
           )}
         </div>
 
@@ -96,7 +100,7 @@ export default function ProductDetailsClient({ product }: { product: Product }) 
         <div className="flex items-baseline gap-3">
           <span className="text-3xl font-semibold">{finalPrice.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
           {(product.discount ?? 0) > 0 && (
-            <span className="text-gray-400 line-through">
+            <span className="text-black/50 dark:text-white/50 line-through">
               {(
                 (selectedVariantId
                   ? product.variants?.find((v) => v.id === selectedVariantId)?.price ?? product.price
@@ -109,7 +113,7 @@ export default function ProductDetailsClient({ product }: { product: Product }) 
         {/* Segmented control de variantes */}
         {product.variants && product.variants.length > 0 && (
           <div>
-            <div className="text-sm text-gray-500 mb-2">Selecione a opção</div>
+            <div className="text-sm text-black/60 dark:text-white/60 mb-2">Selecione a opção</div>
             <div className="flex flex-wrap gap-2">
               {product.variants.map((v) => {
                 const active = selectedVariantId === v.id;
@@ -119,7 +123,9 @@ export default function ProductDetailsClient({ product }: { product: Product }) 
                     type="button"
                     onClick={() => setSelectedVariantId(v.id)}
                     className={`rounded-full px-4 py-2 text-sm border transition ${
-                      active ? "bg-black text-white border-black" : "bg-white text-black border-gray-300 hover:border-gray-400"
+                      active
+                        ? "bg-black text-white border-black dark:bg-white dark:text-black dark:border-white"
+                        : "bg-white text-black border-black/20 hover:border-black/30 dark:bg-white/10 dark:text-white dark:border-white/15 dark:hover:border-white/30"
                     }`}
                   >
                     {v.name}
@@ -135,7 +141,7 @@ export default function ProductDetailsClient({ product }: { product: Product }) 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="h-9 w-9 rounded-full border border-gray-300 hover:border-gray-400"
+              className="h-9 w-9 rounded-full border border-black/20 hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
               onClick={() => setQuantity((q) => Math.max(1, q - 1))}
             >
               −
@@ -143,7 +149,7 @@ export default function ProductDetailsClient({ product }: { product: Product }) 
             <span className="min-w-[2ch] text-center">{quantity}</span>
             <button
               type="button"
-              className="h-9 w-9 rounded-full border border-gray-300 hover:border-gray-400"
+              className="h-9 w-9 rounded-full border border-black/20 hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
               onClick={() => setQuantity((q) => q + 1)}
             >
               +
@@ -154,7 +160,7 @@ export default function ProductDetailsClient({ product }: { product: Product }) 
             type="button"
             onClick={onAddToCart}
             disabled={loading}
-            className="btn btn-primary px-6 h-11 disabled:opacity-60"
+            className="btn-primary px-6 h-11 disabled:opacity-60"
           >
             {loading ? "Adicionando…" : "Comprar"}
           </button>

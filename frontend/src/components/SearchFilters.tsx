@@ -37,38 +37,43 @@ export default function SearchFilters() {
 
   return (
     <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
-      <div className="flex items-center gap-2 text-sm text-black/70">
+      <div className="flex items-center gap-2 text-sm text-black/70 dark:text-white/70">
         <div className="relative">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-black/50">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-black/50 dark:text-white/50">
             <SearchIcon />
           </div>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") applyFilters(); }}
             placeholder="Buscar produtos"
-            className="w-full md:w-64 rounded-full border border-black/10 bg-white px-9 py-2 outline-none focus:ring-2 focus:ring-black/20"
+            className="w-full md:w-64 rounded-full border border-black/10 bg-white px-9 py-2 outline-none focus:ring-2 focus:ring-black/20 dark:bg-white/10 dark:border-white/15 dark:text-white dark:placeholder:text-white/40 dark:focus:ring-white/25"
           />
         </div>
         <select
           name="category"
-          defaultValue={category || ""}
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
           className="form-select"
         >
           <option value="">Todas as categorias</option>
-          <option value="Eletrônicos">Eletrônicos</option>
-          <option value="Roupas">Roupas</option>
-          <option value="Livros">Livros</option>
+          {categories.length > 0
+            ? categories.map((c) => (
+                <option key={c.id} value={c.name}>
+                  {c.name}
+                </option>
+              ))
+            : null}
         </select>
         <select
           name="sort"
-          defaultValue={sort || ""}
+          value={sort}
+          onChange={(e) => setSort(e.target.value)}
           className="form-select"
         >
-          <option value="">Ordenar por</option>
-          <option value="price_asc">Menor preço</option>
-          <option value="price_desc">Maior preço</option>
-          <option value="name_asc">Nome A-Z</option>
-          <option value="name_desc">Nome Z-A</option>
+          <option value="recent">Mais recentes</option>
+          <option value="priceAsc">Menor preço</option>
+          <option value="priceDesc">Maior preço</option>
         </select>
       </div>
       <div>

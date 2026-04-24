@@ -32,7 +32,7 @@ export default function ProductPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-10">
+      <div className="container-page py-10">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="card h-[60vh] skeleton" />
           <div className="space-y-4">
@@ -48,15 +48,15 @@ export default function ProductPage() {
 
   if (error || !product) {
     return (
-      <div className="container mx-auto px-4 py-16 text-center">
+      <div className="container-page py-16 text-center">
         <h1 className="text-2xl font-semibold">Produto não encontrado</h1>
-        <p className="mt-2 text-gray-600">Tente voltar e explorar outros produtos.</p>
+        <p className="mt-2 text-black/60 dark:text-white/70">Tente voltar e explorar outros produtos.</p>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-10">
+    <div className="container-page py-10">
       <ProductDetailsClient product={product} />
     </div>
   );

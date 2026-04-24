@@ -33,9 +33,9 @@ export default function AddToCart({ productId, variants = [] as Variant[] }: { p
     <div className="space-y-3">
       {variants.length > 0 && (
         <div className="flex items-center gap-2">
-          <label className="text-sm text-black/70">Variante</label>
+          <label className="text-sm text-black/70 dark:text-white/70">Variante</label>
           <select
-            className="border rounded-md px-2 py-1 text-sm"
+            className="border border-black/10 dark:border-white/15 bg-white dark:bg-white/10 rounded-md px-2 py-1 text-sm outline-none dark:text-white"
             value={variantId}
             onChange={(e) => setVariantId(e.target.value)}
           >
@@ -48,11 +48,11 @@ export default function AddToCart({ productId, variants = [] as Variant[] }: { p
         </div>
       )}
       <div className="flex items-center gap-2">
-        <label className="text-sm text-black/70">Qtd</label>
+        <label className="text-sm text-black/70 dark:text-white/70">Qtd</label>
         <input
           type="number"
           min={1}
-          className="border rounded-md px-2 py-1 w-20 text-sm"
+          className="border border-black/10 dark:border-white/15 bg-white dark:bg-white/10 rounded-md px-2 py-1 w-20 text-sm outline-none dark:text-white"
           value={quantity}
           onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
         />
@@ -60,7 +60,7 @@ export default function AddToCart({ productId, variants = [] as Variant[] }: { p
       <button
         onClick={handleAdd}
         disabled={loading}
-        className="inline-flex items-center justify-center rounded-full bg-black text-white px-5 py-2 text-sm font-medium hover:bg-black/90 transition-colors disabled:opacity-60"
+        className="btn-primary disabled:opacity-60"
       >
         {loading ? "Adicionando..." : "Adicionar à sacola"}
       </button>

@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import supertest from 'supertest';
-import { base } from './helpers';
+import { agent, hasDb } from './helpers';
 
 // Credenciais de teste já existentes no seed
 const TEST_EMAIL = 'test.user1@example.com';
@@ -13,11 +12,11 @@ function hasRefreshCookie(setCookie?: string[] | string): boolean {
   return arr.some((c) => /(^|;\s*)refreshToken=/.test(c));
 }
 
-describe('Auth Smoke: login -> refresh via cookie -> logout -> refresh deve falhar', () => {
-  const agent = supertest.agent(base);
+describe.skipIf(!hasDb)('Auth Smoke: login -> refresh via cookie -> logout -> refresh deve falhar', () => {
+  const a = agent();
 
   it('Login deve retornar token e setar cookie HttpOnly de refreshToken', async () => {
-    const res = await agent
+    const res = await a
       .post('/api/auth/login')
       .set('Content-Type', 'application/json')
       .send({ email: TEST_EMAIL, password: TEST_PASSWORD })
@@ -31,7 +30,7 @@ describe('Auth Smoke: login -> refresh via cookie -> logout -> refresh deve falh
   });
 
   it('Refresh via cookie deve rotacionar refreshToken e emitir novo access token', async () => {
-    const res = await agent
+    const res = await a
       .post('/api/auth/refresh')
       .set('Content-Type', 'application/json')
       .send({})
@@ -49,7 +48,7 @@ describe('Auth Smoke: login -> refresh via cookie -> logout -> refresh deve falh
   });
 
   it('Logout deve revogar refreshToken e limpar cookie; refresh subsequente deve falhar', async () => {
-    const resLogout = await agent
+    const resLogout = await a
       .post('/api/auth/logout')
       .set('Content-Type', 'application/json')
       .send({})
@@ -59,7 +58,7 @@ describe('Auth Smoke: login -> refresh via cookie -> logout -> refresh deve falh
     expect(resLogout.body.ok).toBe(true);
 
     // Após logout, tentar refresh deve falhar
-    const resRefreshFail = await agent
+    const resRefreshFail = await a
       .post('/api/auth/refresh')
       .set('Content-Type', 'application/json')
       .send({})

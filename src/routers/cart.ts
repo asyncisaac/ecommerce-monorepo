@@ -2,6 +2,7 @@ import { router, publicProcedure, protectedProcedure } from '../lib/trpc.js';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { Decimal } from 'decimal.js';
+import { TRPCError } from '@trpc/server';
 
 export const cartRouter = router({
   // 🛒 GET CARRINHO DO USUÁRIO
@@ -107,9 +108,18 @@ export const cartRouter = router({
       itemId: z.string()
     }))
     .mutation(async ({ ctx, input }) => {
-      return await prisma.cartItem.delete({
-        where: { id: input.itemId }
+      const item = await prisma.cartItem.findFirst({
+        where: {
+          id: input.itemId,
+          cart: { userId: ctx.user.id },
+        },
       });
+
+      if (!item) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Item não encontrado' });
+      }
+
+      return await prisma.cartItem.delete({ where: { id: item.id } });
     }),
 
   // 📝 ATUALIZAR QUANTIDADE
@@ -119,15 +129,24 @@ export const cartRouter = router({
       quantity: z.number().min(0) // 0 = remove
     }))
     .mutation(async ({ ctx, input }) => {
+      const item = await prisma.cartItem.findFirst({
+        where: {
+          id: input.itemId,
+          cart: { userId: ctx.user.id },
+        },
+      });
+
+      if (!item) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Item não encontrado' });
+      }
+
       if (input.quantity === 0) {
         // Remove item se quantidade for 0
-        return await prisma.cartItem.delete({
-          where: { id: input.itemId }
-        });
+        return await prisma.cartItem.delete({ where: { id: item.id } });
       }
 
       return await prisma.cartItem.update({
-        where: { id: input.itemId },
+        where: { id: item.id },
         data: { quantity: input.quantity },
         include: { product: true }
       });

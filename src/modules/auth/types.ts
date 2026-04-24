@@ -1,4 +1,4 @@
-import { UserRole } from '@prisma/client'
+import type { UserRole } from '@prisma/client';
 // Data Transfer Objects
 export interface RegisterUserData {
   email: string;

@@ -16,6 +16,7 @@ pnpm-debug.log*
 
 # Next.js / Turbopack / Vercel (frontend)
 frontend/.next/
+frontend/.next-dist/
 frontend/out/
 frontend/.vercel/
 frontend/.turbo/

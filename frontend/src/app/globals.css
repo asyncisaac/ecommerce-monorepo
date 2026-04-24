@@ -3,6 +3,18 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --surface: #ffffff;
+  --border: rgb(0 0 0 / 0.1);
+  --skeleton: #f3f4f6;
+  --primary-bg: #000000;
+  --primary-fg: #ffffff;
+  --primary-hover-bg: rgb(0 0 0 / 0.9);
+  --secondary-bg: rgb(0 0 0 / 0.05);
+  --secondary-fg: #171717;
+  --secondary-hover-bg: rgb(0 0 0 / 0.1);
+  --input-bg: #ffffff;
+  --input-border: rgb(0 0 0 / 0.1);
+  --input-ring: rgb(0 0 0 / 0.1);
 }
 
 @theme inline {
@@ -16,6 +28,18 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --surface: #121212;
+    --border: rgb(255 255 255 / 0.12);
+    --skeleton: #1f1f1f;
+    --primary-bg: #ffffff;
+    --primary-fg: #0a0a0a;
+    --primary-hover-bg: rgb(255 255 255 / 0.9);
+    --secondary-bg: rgb(255 255 255 / 0.1);
+    --secondary-fg: #ededed;
+    --secondary-hover-bg: rgb(255 255 255 / 0.15);
+    --input-bg: rgb(255 255 255 / 0.08);
+    --input-border: rgb(255 255 255 / 0.15);
+    --input-ring: rgb(255 255 255 / 0.2);
   }
 }
 
@@ -36,27 +60,74 @@ body {
 
 .card {
   border-radius: 0.75rem;
-  border: 1px solid rgb(0 0 0 / 0.08);
-  background: #ffffff;
+  border: 1px solid var(--border);
+  background: var(--surface);
   box-shadow: 0 8px 20px -8px rgb(0 0 0 / 0.18);
 }
 
 /* Botões */
 .btn-primary {
-  @apply inline-flex items-center justify-center px-6 py-2.5 bg-black text-white rounded-full font-medium hover:bg-black/90 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98];
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.625rem 1.5rem;
+  border-radius: 9999px;
+  font-weight: 500;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  transition: background-color 200ms, transform 200ms;
+}
+.btn-primary:hover {
+  background: var(--primary-hover-bg);
+}
+.btn-primary:active {
+  transform: scale(0.98);
 }
 
 .btn-secondary {
-  @apply inline-flex items-center justify-center px-6 py-2.5 bg-black/5 text-black rounded-full font-medium hover:bg-black/10 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98];
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.625rem 1.5rem;
+  border-radius: 9999px;
+  font-weight: 500;
+  background: var(--secondary-bg);
+  color: var(--secondary-fg);
+  transition: background-color 200ms, transform 200ms;
+}
+.btn-secondary:hover {
+  background: var(--secondary-hover-bg);
+}
+.btn-secondary:active {
+  transform: scale(0.98);
 }
 
 /* Inputs e Selects */
 .form-input {
-  @apply w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 outline-none transition-all duration-200 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 hover:border-white/20;
+  width: 100%;
+  border-radius: 0.75rem;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  padding: 0.75rem 1rem;
+  outline: none;
+  transition: border-color 200ms, box-shadow 200ms, background-color 200ms;
+}
+.form-input:focus {
+  box-shadow: 0 0 0 3px var(--input-ring);
 }
 
 .form-select {
-  @apply w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 outline-none transition-all duration-200 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 hover:border-white/20 cursor-pointer;
+  width: 100%;
+  border-radius: 0.75rem;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  padding: 0.75rem 1rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 200ms, box-shadow 200ms, background-color 200ms;
+}
+.form-select:focus {
+  box-shadow: 0 0 0 3px var(--input-ring);
 }
 
 /* Microinterações para cards */
@@ -71,7 +142,7 @@ body {
 
 .skeleton {
   border-radius: 0.75rem;
-  background: #f3f4f6;
+  background: var(--skeleton);
   animation: pulse 1.8s ease-in-out infinite;
 }
 @keyframes pulse {

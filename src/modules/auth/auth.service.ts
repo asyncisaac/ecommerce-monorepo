@@ -1,16 +1,23 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../lib/prisma.js';
 import { RegisterUserData, LoginUserData, AuthResponse } from './types.js';
 
-const prisma = new PrismaClient();
+function getJwtSecretOrThrow(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.length < 16) {
+    throw new Error('Configuração inválida: JWT_SECRET ausente ou fraco');
+  }
+  return secret;
+}
 
 export class AuthService {
   async register(userData: RegisterUserData): Promise<AuthResponse> {
     try {
+      const email = userData.email.trim().toLowerCase();
       // Verificar se usuário já existe
       const existingUser = await prisma.user.findUnique({
-        where: { email: userData.email },
+        where: { email },
       });
 
       if (existingUser) {
@@ -27,7 +34,7 @@ export class AuthService {
       // Criar usuário
       const user = await prisma.user.create({
         data: {
-          email: userData.email,
+          email,
           password: hashedPassword,
           name: userData.name,
         },
@@ -43,7 +50,7 @@ export class AuthService {
       // Gerar token JWT
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role },
-        process.env.JWT_SECRET!,
+        getJwtSecretOrThrow(),
         { expiresIn: '7d' }
       );
 
@@ -67,9 +74,10 @@ export class AuthService {
 
   async login(loginData: LoginUserData): Promise<AuthResponse> {
     try {
+      const email = loginData.email.trim().toLowerCase();
       // Encontrar usuário pelo email
       const user = await prisma.user.findUnique({
-        where: { email: loginData.email },
+        where: { email },
         select: {
           id: true,
           email: true,
@@ -102,7 +110,7 @@ export class AuthService {
       // Gerar token JWT
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role },
-        process.env.JWT_SECRET!,
+        getJwtSecretOrThrow(),
         { expiresIn: '7d' }
       );
 

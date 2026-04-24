@@ -1,13 +1,15 @@
 import SearchFilters from "../../components/SearchFilters";
 import ProductsClient from "../../components/ProductsClient";
 
+export const dynamic = "force-dynamic";
+
 type ProductList = { products: any[] };
 async function fetchProducts(params?: Record<string, string>): Promise<ProductList> {
   const base = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001";
   const qs = params && Object.keys(params).length > 0 ? `?${new URLSearchParams(params).toString()}` : "";
   try {
     const res = await fetch(`${base}/api/products${qs}`, {
-      next: { revalidate: 30 },
+      cache: "no-store",
       headers: { "x-request-id": "frontend-products" },
     });
     if (!res.ok) return { products: [] };
@@ -17,11 +19,12 @@ async function fetchProducts(params?: Record<string, string>): Promise<ProductLi
   }
 }
 
-export default async function Products({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
+export default async function Products({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = (await searchParams) ?? {};
   const params: Record<string, string> = {};
-  const q = typeof searchParams?.q === "string" ? searchParams?.q : undefined;
-  const category = typeof searchParams?.category === "string" ? searchParams?.category : undefined;
-  const sort = typeof searchParams?.sort === "string" ? searchParams?.sort : undefined;
+  const q = typeof sp.q === "string" ? sp.q : undefined;
+  const category = typeof sp.category === "string" ? sp.category : undefined;
+  const sort = typeof sp.sort === "string" ? sp.sort : undefined;
   if (q) params.q = q;
   if (category) params.category = category;
   if (sort) params.sort = sort;
@@ -31,8 +34,7 @@ export default async function Products({ searchParams }: { searchParams?: Record
     <main>
       <section className="container-page py-10">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-semibold tracking-tight text-black">Produtos</h1>
-          {/** @ts-expect-error RSC render client component */}
+          <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-white">Produtos</h1>
           <SearchFilters />
         </div>
         <div className="mt-6">

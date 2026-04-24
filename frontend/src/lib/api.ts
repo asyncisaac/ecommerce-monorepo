@@ -43,7 +43,12 @@ api.interceptors.response.use(
           };
           return api.request(original);
         }
-      } catch {}
+      } catch {
+        try {
+          localStorage.removeItem("token");
+        } catch {
+        }
+      }
     }
     return Promise.reject(error);
   }

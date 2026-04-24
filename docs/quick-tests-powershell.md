@@ -93,6 +93,8 @@ Invoke-RestMethod -Uri http://localhost:3001/api/auth/me -Method GET -Headers $h
 # Deve exibir "role": "ADMIN"
 ```
 
+Observação: o seed já cria um usuário ADMIN (`admin@example.com` / `admin123`).
+
 ### Listar usuários
 ```powershell
 Invoke-RestMethod -Uri http://localhost:3001/api/users -Method GET -Headers $headers | ConvertTo-Json -Depth 6
@@ -193,7 +195,7 @@ Scripts rápidos para criar/editar/remover categorias e produtos (requer usuári
 
 ```powershell
 $base = "http://localhost:3001"
-$loginBody = @{ email = "test.user1@example.com"; password = "senha123" } | ConvertTo-Json
+$loginBody = @{ email = "admin@example.com"; password = "admin123" } | ConvertTo-Json
 $login = Invoke-RestMethod -Uri "$base/api/auth/login" -Method POST -Body $loginBody -ContentType "application/json"
 $token = $login.token
 $headers = @{ Authorization = "Bearer $token" }

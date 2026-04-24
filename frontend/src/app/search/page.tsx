@@ -1,23 +1,26 @@
 import SearchFilters from "../../components/SearchFilters";
 import { ProductCard } from "../../components/ProductCard";
 
+export const dynamic = "force-dynamic";
+
 type ProductList = { products: any[] };
 async function fetchProducts(params?: Record<string, string>): Promise<ProductList> {
   const base = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001";
   const qs = params && Object.keys(params).length > 0 ? `?${new URLSearchParams(params).toString()}` : "";
   const res = await fetch(`${base}/api/products${qs}`, {
-    next: { revalidate: 15 },
+    cache: "no-store",
     headers: { "x-request-id": "frontend-search" },
   });
   if (!res.ok) return { products: [] };
   return res.json();
 }
 
-export default async function SearchPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
+export default async function SearchPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = (await searchParams) ?? {};
   const params: Record<string, string> = {};
-  const q = typeof searchParams?.q === "string" ? searchParams?.q : undefined;
-  const category = typeof searchParams?.category === "string" ? searchParams?.category : undefined;
-  const sort = typeof searchParams?.sort === "string" ? searchParams?.sort : undefined;
+  const q = typeof sp.q === "string" ? sp.q : undefined;
+  const category = typeof sp.category === "string" ? sp.category : undefined;
+  const sort = typeof sp.sort === "string" ? sp.sort : undefined;
   if (q) params.q = q;
   if (category) params.category = category;
   if (sort) params.sort = sort;
@@ -26,12 +29,11 @@ export default async function SearchPage({ searchParams }: { searchParams?: Reco
   return (
     <main>
       <section className="container-page py-10">
-        <div className="rounded-2xl overflow-hidden" style={{ background: "radial-gradient(1200px 400px at 20% 0%, #f2f2f2 0%, #e8e8e8 45%, #dcdcdc 100%)" }}>
+        <div className="rounded-2xl overflow-hidden bg-[radial-gradient(1200px_400px_at_20%_0%,_#f2f2f2_0%,_#e8e8e8_45%,_#dcdcdc_100%)] dark:bg-[radial-gradient(1200px_400px_at_20%_0%,_#1a1a1a_0%,_#111111_45%,_#0a0a0a_100%)]">
           <div className="px-8 py-10 md:px-16 md:py-14">
-            <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-black">Buscar produtos</h1>
-            <p className="mt-2 text-black/60">Encontre produtos por nome, categoria e ordene do jeito que preferir.</p>
+            <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-black dark:text-white">Buscar produtos</h1>
+            <p className="mt-2 text-black/60 dark:text-white/70">Encontre produtos por nome, categoria e ordene do jeito que preferir.</p>
             <div className="mt-6">
-              {/** @ts-expect-error RSC render client component */}
               <SearchFilters />
             </div>
           </div>
@@ -39,15 +41,15 @@ export default async function SearchPage({ searchParams }: { searchParams?: Reco
         <div className="mt-8">
           {products.length === 0 ? (
             <div className="text-center py-16">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-black/5 flex items-center justify-center">
-                <svg className="w-8 h-8 text-black/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center">
+                <svg className="w-8 h-8 text-black/40 dark:text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-medium text-black mb-2">
+              <h3 className="text-xl font-medium text-black dark:text-white mb-2">
                 {q ? `Nenhum resultado para "${q}"` : "Explore nossos produtos"}
               </h3>
-              <p className="text-black/60 mb-6 max-w-md mx-auto">
+              <p className="text-black/60 dark:text-white/70 mb-6 max-w-md mx-auto">
                 {q 
                   ? "Tente ajustar os filtros ou buscar por outros termos." 
                   : "Use os filtros acima para encontrar exatamente o que procura."
@@ -56,13 +58,13 @@ export default async function SearchPage({ searchParams }: { searchParams?: Reco
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <a 
                   href="/products" 
-                  className="inline-flex items-center justify-center px-6 py-2.5 bg-black text-white rounded-full font-medium hover:bg-black/90 transition-colors"
+                  className="btn-primary"
                 >
                   Ver todos os produtos
                 </a>
                 <a 
                   href="/" 
-                  className="inline-flex items-center justify-center px-6 py-2.5 bg-black/5 text-black rounded-full font-medium hover:bg-black/10 transition-colors"
+                  className="btn-secondary"
                 >
                   Voltar ao início
                 </a>

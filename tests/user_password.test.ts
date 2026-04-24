@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import supertest from 'supertest';
-import { base } from './helpers';
+import { agent, hasDb } from './helpers';
 
 // Gera email único para evitar colisão entre execuções
 function uniqueEmail() {
@@ -8,21 +7,21 @@ function uniqueEmail() {
   return `pwd.user.${ts}@example.com`;
 }
 
-describe('User Password: registrar -> trocar senha -> login com nova senha -> reverter', () => {
-  const agent = supertest.agent(base);
+describe.skipIf(!hasDb)('User Password: registrar -> trocar senha -> login com nova senha -> reverter', () => {
+  const a = agent();
   const email = uniqueEmail();
   const initialPassword = 'SenhaInicial123'; // atende regex (letras e números)
   const newPassword = 'SenhaNova123';
 
   it('Registra usuário de teste e realiza login', async () => {
-    const resReg = await agent
+    const resReg = await a
       .post('/api/auth/register')
       .set('Content-Type', 'application/json')
       .send({ name: 'User Pwd', email, password: initialPassword })
       .expect(200);
     expect(resReg.body).toHaveProperty('token');
 
-    const resLogin = await agent
+    const resLogin = await a
       .post('/api/auth/login')
       .set('Content-Type', 'application/json')
       .send({ email, password: initialPassword })
@@ -32,7 +31,7 @@ describe('User Password: registrar -> trocar senha -> login com nova senha -> re
 
   it('Troca a senha usando endpoint protegido e faz login com a nova senha', async () => {
     // Obter token atual
-    const resLogin = await agent
+    const resLogin = await a
       .post('/api/auth/login')
       .set('Content-Type', 'application/json')
       .send({ email, password: initialPassword })
@@ -40,7 +39,7 @@ describe('User Password: registrar -> trocar senha -> login com nova senha -> re
     const token = resLogin.body.token as string;
 
     // Trocar senha
-    const resChange = await agent
+    const resChange = await a
       .put('/api/user/password')
       .set('Content-Type', 'application/json')
       .set('Authorization', `Bearer ${token}`)
@@ -50,7 +49,7 @@ describe('User Password: registrar -> trocar senha -> login com nova senha -> re
     expect(resChange.body.ok).toBe(true);
 
     // Login com nova senha
-    const resLoginNew = await agent
+    const resLoginNew = await a
       .post('/api/auth/login')
       .set('Content-Type', 'application/json')
       .send({ email, password: newPassword })
@@ -59,14 +58,14 @@ describe('User Password: registrar -> trocar senha -> login com nova senha -> re
   });
 
   it('Reverte a senha para o valor inicial e valida login', async () => {
-    const resLoginNew = await agent
+    const resLoginNew = await a
       .post('/api/auth/login')
       .set('Content-Type', 'application/json')
       .send({ email, password: newPassword })
       .expect(200);
     const tokenNew = resLoginNew.body.token as string;
 
-    const resRevert = await agent
+    const resRevert = await a
       .put('/api/user/password')
       .set('Content-Type', 'application/json')
       .set('Authorization', `Bearer ${tokenNew}`)
@@ -76,7 +75,7 @@ describe('User Password: registrar -> trocar senha -> login com nova senha -> re
     expect(resRevert.body.ok).toBe(true);
 
     // Login com senha inicial novamente
-    const resLoginInitial = await agent
+    const resLoginInitial = await a
       .post('/api/auth/login')
       .set('Content-Type', 'application/json')
       .send({ email, password: initialPassword })

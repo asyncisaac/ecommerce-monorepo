@@ -1,0 +1,57 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ecommerce
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d ecommerce"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecommerce?schema=public
+      JWT_SECRET: ci_jwt_secret_min_32_chars_1234567890
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install backend deps
+        run: npm ci
+
+      - name: Install frontend deps
+        run: npm ci --prefix frontend
+
+      - name: Prisma generate
+        run: npm run db:generate
+
+      - name: Prisma db push
+        run: npm run db:push
+
+      - name: Seed
+        run: npm run seed
+
+      - name: Test
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (backend + frontend)
+        run: npm run build:full
