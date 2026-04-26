@@ -15,7 +15,29 @@ export default function MiniCart() {
   const [open, setOpen] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [auth, setAuth] = useState<boolean>(true);
+  const [loading, setLoading] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  function formatMoney(value: number, currency: string) {
+    if (currency === "BRL") {
+      return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    }
+    return value.toFixed(2);
+  }
+
+  async function fetchSummary() {
+    setLoading(true);
+    try {
+      const res = await api.get("/api/cart/summary");
+      setSummary(res.data);
+      setAuth(true);
+    } catch (err: any) {
+      if (err?.response?.status === 401) setAuth(false);
+      setSummary(null);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -27,16 +49,12 @@ export default function MiniCart() {
   }, []);
 
   useEffect(() => {
+    void fetchSummary();
+  }, []);
+
+  useEffect(() => {
     if (!open) return;
-    api.get("/api/cart/summary")
-      .then((res) => {
-        setSummary(res.data);
-        setAuth(true);
-      })
-      .catch((err) => {
-        if (err?.response?.status === 401) setAuth(false);
-        setSummary(null);
-      });
+    void fetchSummary();
   }, [open]);
 
   return (
@@ -54,7 +72,20 @@ export default function MiniCart() {
           {!auth && (
             <p className="text-sm text-black/70 dark:text-white/70">Faça login para visualizar sua sacola.</p>
           )}
-          {auth && summary && (
+          {auth && loading && (
+            <p className="text-sm text-black/70 dark:text-white/70">Carregando…</p>
+          )}
+          {auth && !loading && summary && summary.itemsCount === 0 && (
+            <div className="space-y-2 text-sm">
+              <p className="text-black/70 dark:text-white/70">Sua sacola está vazia.</p>
+              <div className="pt-1">
+                <a href="/products" className="btn-primary w-full">
+                  Explorar produtos
+                </a>
+              </div>
+            </div>
+          )}
+          {auth && !loading && summary && summary.itemsCount > 0 && (
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-black/70 dark:text-white/70">Itens</span>
@@ -63,17 +94,17 @@ export default function MiniCart() {
               <div className="flex justify-between">
                 <span className="text-black/70 dark:text-white/70">Subtotal</span>
                 <span className="text-black dark:text-white font-medium">
-                  {summary.currency === "BRL" ? `R$ ${summary.subtotal.toFixed(2)}` : summary.subtotal.toFixed(2)}
+                  {formatMoney(summary.subtotal, summary.currency)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-black/70 dark:text-white/70">Descontos</span>
-                <span className="text-black dark:text-white font-medium">- {summary.discountTotal.toFixed(2)}</span>
+                <span className="text-black dark:text-white font-medium">- {formatMoney(summary.discountTotal, summary.currency)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-black/90 dark:text-white font-medium">Total</span>
                 <span className="text-black dark:text-white font-semibold">
-                  {summary.currency === "BRL" ? `R$ ${summary.total.toFixed(2)}` : summary.total.toFixed(2)}
+                  {formatMoney(summary.total, summary.currency)}
                 </span>
               </div>
               <div className="pt-2">

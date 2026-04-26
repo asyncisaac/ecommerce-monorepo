@@ -2,6 +2,8 @@ import { router, protectedProcedure } from '../lib/trpc.js';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { Decimal } from 'decimal.js';
+import Stripe from 'stripe';
+import { TRPCError } from '@trpc/server';
 
 export const orderRouter = router({
   // 🧾 CHECKOUT: cria uma ordem a partir do carrinho do usuário
@@ -19,7 +21,7 @@ export const orderRouter = router({
       });
 
       if (!cart || cart.items.length === 0) {
-        throw new Error('Carrinho vazio');
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Carrinho vazio' });
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -36,7 +38,7 @@ export const orderRouter = router({
 
           // estoque
           if (product.stock < item.quantity) {
-            throw new Error(`Estoque insuficiente para o produto: ${product.name}`);
+            throw new TRPCError({ code: 'CONFLICT', message: `Estoque insuficiente para o produto: ${product.name}` });
           }
 
           subtotal = subtotal.add(unitPrice.mul(item.quantity));
@@ -80,7 +82,96 @@ export const orderRouter = router({
         return order;
       });
 
-      return result;
+      const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+      if (!stripeSecretKey) return result;
+
+      const appUrl =
+        process.env.APP_URL ||
+        process.env.CORS_ORIGIN?.split(',').map(s => s.trim()).filter(Boolean)?.[0] ||
+        'http://localhost:3000';
+
+      const stripe = new Stripe(stripeSecretKey);
+
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        client_reference_id: result.id,
+        metadata: { orderId: result.id, userId: ctx.user.id },
+        success_url: `${appUrl}/orders/${result.id}?success=1`,
+        cancel_url: `${appUrl}/cart?canceled=1&orderId=${result.id}`,
+        line_items: result.items.map((it) => ({
+          quantity: it.quantity,
+          price_data: {
+            currency: 'brl',
+            unit_amount: Math.max(0, Math.round(Number(it.price) * 100)),
+            product_data: {
+              name: it.product?.name ?? 'Produto',
+            },
+          },
+        })),
+      });
+
+      const paymentId = (typeof session.payment_intent === 'string' && session.payment_intent) ? session.payment_intent : session.id;
+      await prisma.order.update({
+        where: { id: result.id },
+        data: { paymentId },
+      });
+
+      return {
+        ...result,
+        paymentId,
+        paymentProvider: 'stripe',
+        checkoutUrl: session.url,
+        paymentSessionId: session.id,
+      };
+    }),
+
+  pay: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+      if (!stripeSecretKey) {
+        throw new TRPCError({ code: 'NOT_IMPLEMENTED', message: 'Pagamentos não configurados' });
+      }
+
+      const appUrl =
+        process.env.APP_URL ||
+        process.env.CORS_ORIGIN?.split(',').map(s => s.trim()).filter(Boolean)?.[0] ||
+        'http://localhost:3000';
+
+      const order = await prisma.order.findFirst({
+        where: { id: input.id, userId: ctx.user.id },
+        include: { items: { include: { product: true } } },
+      });
+      if (!order) throw new TRPCError({ code: 'NOT_FOUND', message: 'Ordem não encontrada' });
+      if (order.status !== 'PENDING') throw new TRPCError({ code: 'BAD_REQUEST', message: 'Este pedido não está pendente de pagamento' });
+
+      const stripe = new Stripe(stripeSecretKey);
+
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        client_reference_id: order.id,
+        metadata: { orderId: order.id, userId: ctx.user.id },
+        success_url: `${appUrl}/orders/${order.id}?success=1`,
+        cancel_url: `${appUrl}/orders/${order.id}?canceled=1`,
+        line_items: order.items.map((it) => ({
+          quantity: it.quantity,
+          price_data: {
+            currency: 'brl',
+            unit_amount: Math.max(0, Math.round(Number(it.price) * 100)),
+            product_data: { name: it.product?.name ?? 'Produto' },
+          },
+        })),
+      });
+
+      const paymentId = (typeof session.payment_intent === 'string' && session.payment_intent) ? session.payment_intent : session.id;
+      await prisma.order.update({ where: { id: order.id }, data: { paymentId } });
+
+      return {
+        paymentProvider: 'stripe',
+        checkoutUrl: session.url,
+        paymentSessionId: session.id,
+        orderId: order.id,
+      };
     }),
 
   // 📦 Listar ordens do usuário
@@ -105,7 +196,7 @@ export const orderRouter = router({
         include: { items: { include: { product: true } } }
       });
       if (!order) {
-        throw new Error('Ordem não encontrada');
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Ordem não encontrada' });
       }
       return order;
     }),

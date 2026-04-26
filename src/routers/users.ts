@@ -2,6 +2,7 @@ import { router, adminProcedure, protectedProcedure } from '../lib/trpc.js';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import bcrypt from 'bcryptjs';
+import { TRPCError } from '@trpc/server';
 
 export const userRouter = router({
   list: adminProcedure.query(async () => {
@@ -30,7 +31,7 @@ export const userRouter = router({
         where: { email }
       });
       if (existingUser) {
-        throw new Error('Usuário já existe');
+        throw new TRPCError({ code: 'CONFLICT', message: 'Usuário já existe' });
       }
 
       // Usa rounds configuráveis via env, com fallback seguro
@@ -51,7 +52,7 @@ export const userRouter = router({
       } catch (err: any) {
         // Trata violação de unique constraint (email)
         if (err?.code === 'P2002') {
-          throw new Error('Email já cadastrado');
+          throw new TRPCError({ code: 'CONFLICT', message: 'Email já cadastrado' });
         }
         throw err;
       }
@@ -70,10 +71,10 @@ export const userRouter = router({
         where: { id: userId },
         select: { id: true, password: true },
       });
-      if (!user) throw new Error("Usuário não encontrado");
+      if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'Usuário não encontrado' });
 
       const matches = await bcrypt.compare(input.oldPassword, user.password);
-      if (!matches) throw new Error("Senha atual incorreta");
+      if (!matches) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Senha atual incorreta' });
 
       const roundsRaw = Number(process.env.BCRYPT_ROUNDS ?? '12');
       const rounds = Number.isFinite(roundsRaw) && roundsRaw >= 10 && roundsRaw <= 14 ? roundsRaw : 12;
@@ -93,7 +94,7 @@ export const userRouter = router({
       where: { id: ctx.user.id },
       select: { id: true, email: true, name: true, role: true, createdAt: true }
     });
-    if (!user) throw new Error('Usuário não encontrado');
+    if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'Usuário não encontrado' });
     return user;
   }),
 
@@ -108,13 +109,13 @@ export const userRouter = router({
       if (typeof input.email !== 'undefined') data.email = input.email.trim().toLowerCase();
 
       if (!('name' in data) && !('email' in data)) {
-        throw new Error('Nada para atualizar');
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Nada para atualizar' });
       }
 
       if (data.email) {
         const existing = await prisma.user.findUnique({ where: { email: data.email } });
         if (existing && existing.id !== ctx.user.id) {
-          throw new Error('Email já cadastrado');
+          throw new TRPCError({ code: 'CONFLICT', message: 'Email já cadastrado' });
         }
       }
 

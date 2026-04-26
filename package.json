@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "dev:frontend": "npm --prefix frontend run dev -- --webpack",
+    "dev:frontend": "npm --prefix frontend run dev",
     "dev:full": "concurrently -n backend,frontend -c blue,green \"npm run dev\" \"npm run dev:frontend\"",
     "lint": "npm --prefix frontend run lint",
     "build": "tsc",
@@ -41,6 +41,7 @@
     "jsonwebtoken": "^9.0.2",
     "pino": "^10.1.0",
     "pino-http": "^11.0.0",
+    "stripe": "^22.1.0",
     "superjson": "^2.2.2",
     "zod": "^4.1.12"
   },

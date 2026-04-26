@@ -41,6 +41,11 @@ Opcional:
 PORT=3001
 CORS_ORIGIN=http://localhost:3000
 COOKIE_SECURE=false
+APP_URL=http://localhost:3000
+
+# Pagamentos (Stripe sandbox) — se não configurar, o checkout cria o pedido sem pagamento
+# STRIPE_SECRET_KEY=sk_test_...
+# STRIPE_WEBHOOK_SECRET=whsec_...
 ```
 
 ### Opção B) Definir no PowerShell (Windows)
@@ -100,7 +105,7 @@ npm run dev:full
    - Login
    - Listar produtos → abrir um produto
    - Adicionar ao carrinho → abrir carrinho
-   - Checkout → ver a ordem em “Orders”
+   - Checkout → (com Stripe configurado) abre o pagamento → ao finalizar, volte no pedido em “Orders”
    - (Opcional) Admin → criar/editar produto/categoria
 
 ## Credenciais do seed
@@ -170,6 +175,11 @@ npm run dev:full
 - `POST /api/checkout`
 - `GET /api/orders`
 - `GET /api/orders/:id`
+- `POST /api/orders/:id/pay` (reabre pagamento do pedido se estiver `PENDING`)
+
+### Webhooks
+
+- `POST /api/webhooks/stripe` (requer assinatura `stripe-signature`)
 
 ### Admin (requer usuário ADMIN)
 

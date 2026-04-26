@@ -75,11 +75,20 @@ export default function CartPage() {
       setCheckoutLoading(true);
       const res = await api.post("/api/checkout", {});
       const orderIdRaw = (res?.data as { id?: unknown } | undefined)?.id;
+      const checkoutUrlRaw = (res?.data as { checkoutUrl?: unknown } | undefined)?.checkoutUrl;
       const orderId =
         typeof orderIdRaw === "string" && orderIdRaw.trim() !== "" && orderIdRaw !== "undefined" && orderIdRaw !== "null"
           ? orderIdRaw
           : undefined;
+      const checkoutUrl =
+        typeof checkoutUrlRaw === "string" && checkoutUrlRaw.trim() !== "" && checkoutUrlRaw !== "undefined" && checkoutUrlRaw !== "null"
+          ? checkoutUrlRaw
+          : undefined;
       addToast({ type: "success", message: "Pedido criado com sucesso" });
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl;
+        return;
+      }
       window.location.href = orderId ? `/orders/${orderId}` : "/orders";
     } catch (err: any) {
       const msg = err?.response?.data?.error || err?.message || "Erro ao finalizar compra";

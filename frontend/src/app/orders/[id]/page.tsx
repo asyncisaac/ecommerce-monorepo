@@ -2,6 +2,7 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "../../../lib/api";
+import { useToast } from "../../../components/ToastProvider";
 
 type OrderItem = {
   id: string;
@@ -20,9 +21,11 @@ type Order = {
 
 export default function OrderDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { addToast } = useToast();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [payLoading, setPayLoading] = useState(false);
   const invalidId = !id || id === "undefined" || id === "null";
 
   async function loadOrder(orderId: string) {
@@ -36,6 +39,28 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ id: str
       else setError(err?.response?.data?.error || "Erro ao carregar pedido");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function payNow() {
+    if (!order) return;
+    try {
+      setPayLoading(true);
+      const res = await api.post(`/api/orders/${order.id}/pay`, {});
+      const checkoutUrlRaw = (res?.data as { checkoutUrl?: unknown } | undefined)?.checkoutUrl;
+      const checkoutUrl =
+        typeof checkoutUrlRaw === "string" && checkoutUrlRaw.trim() !== "" && checkoutUrlRaw !== "undefined" && checkoutUrlRaw !== "null"
+          ? checkoutUrlRaw
+          : undefined;
+      if (!checkoutUrl) {
+        addToast({ type: "error", message: "Não foi possível iniciar o pagamento" });
+        return;
+      }
+      window.location.href = checkoutUrl;
+    } catch (err: any) {
+      addToast({ type: "error", message: err?.response?.data?.error || "Erro ao iniciar pagamento" });
+    } finally {
+      setPayLoading(false);
     }
   }
 
@@ -92,6 +117,10 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ id: str
           </div>
           <div className="md:sticky md:top-24 md:self-start">
             <div className="card p-5">
+              {(() => {
+                const showPay = order.status === "PENDING";
+                return (
+                  <>
               <div className="flex items-center justify-between">
                 <span className="text-black/60 dark:text-white/60">Status</span>
                 <span className="font-medium">{order.status}</span>
@@ -106,7 +135,15 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ id: str
                   {Number(order.total).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                 </span>
               </div>
-              <Link href="/products" className="btn-primary w-full mt-5">Comprar mais</Link>
+              {order.status === "PENDING" && (
+                <button className="btn-primary w-full mt-5" disabled={payLoading} onClick={payNow}>
+                  {payLoading ? "Abrindo pagamento..." : "Pagar agora"}
+                </button>
+              )}
+              <Link href="/products" className={`${showPay ? "btn-secondary mt-3" : "btn-primary mt-5"} w-full`}>Comprar mais</Link>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

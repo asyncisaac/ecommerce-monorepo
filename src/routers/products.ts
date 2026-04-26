@@ -1,6 +1,7 @@
 import { router, publicProcedure, adminProcedure } from '../lib/trpc.js';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
+import { TRPCError } from '@trpc/server';
 
 function slugify(text: string) {
   return text
@@ -93,7 +94,7 @@ export const productsRouter = router({
       });
 
       if (!product) {
-        throw new Error('Produto não encontrado');
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Produto não encontrado' });
       }
 
       return product;
@@ -140,7 +141,7 @@ export const productsRouter = router({
     .mutation(async ({ input }) => {
       const prodCount = await prisma.product.count({ where: { categoryId: input.id } });
       if (prodCount > 0) {
-        throw new Error('Categoria possui produtos vinculados');
+        throw new TRPCError({ code: 'CONFLICT', message: 'Categoria possui produtos vinculados' });
       }
       return prisma.category.delete({ where: { id: input.id } });
     }),
@@ -210,7 +211,7 @@ export const productsRouter = router({
         prisma.orderItem.count({ where: { productId: input.id } })
       ]);
       if (cartCount > 0 || orderCount > 0) {
-        throw new Error('Produto vinculado a carrinhos/ordens');
+        throw new TRPCError({ code: 'CONFLICT', message: 'Produto vinculado a carrinhos/ordens' });
       }
       return prisma.product.delete({ where: { id: input.id } });
     }),
