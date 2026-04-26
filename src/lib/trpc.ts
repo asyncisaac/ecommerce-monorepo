@@ -32,7 +32,8 @@ export const createContext = async (opts: CreateExpressContextOptions) => {
       user = null;
     }
   }
-  return { prisma, user, req: opts.req, res: opts.res };
+  const requestId = (opts.req as any).id ?? opts.req.headers['x-request-id'];
+  return { prisma, user, req: opts.req, res: opts.res, requestId: requestId ? String(requestId) : undefined };
 };
 
 // Inicialização do tRPC
