@@ -123,6 +123,14 @@ npm run dev:full
 - Logs estruturados carregam, quando disponível: `requestId`, `userId`, `orderId`, `productId`, `stripeEventId`, `action`, `status`.
 - O `requestId` é propagado do HTTP para o contexto do tRPC e para a service-layer.
 
+Exemplo (pino JSON):
+
+```json
+{"level":30,"event":"order_checkout_start","requestId":"3f0db0a7-0db8-4c74-8f4c-6622e82f10e9","userId":"usr_123","msg":"checkout start"}
+{"level":30,"action":"order_created","requestId":"3f0db0a7-0db8-4c74-8f4c-6622e82f10e9","userId":"usr_123","orderId":"ord_456","status":"PENDING","msg":"checkout"}
+{"level":30,"action":"webhook_duplicate","requestId":"a1b2c3","stripeEventId":"evt_789","type":"checkout.session.completed","status":"ignored","msg":"webhook"}
+```
+
 ### Diagrama (alto nível)
 
 ```mermaid
