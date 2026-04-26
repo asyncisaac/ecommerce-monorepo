@@ -6,13 +6,19 @@ export const orderRouter = router({
   // 🧾 CHECKOUT: cria uma ordem a partir do carrinho do usuário
   checkout: protectedProcedure
     .mutation(async ({ ctx }) => {
-      return orderService.checkout(ctx.user.id);
+      return orderService.checkout(ctx.user.id, {
+        logger: (ctx.req as any)?.log,
+        requestId: (ctx as any).requestId,
+      });
     }),
 
   pay: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      return orderService.pay(ctx.user.id, input.id);
+      return orderService.pay(ctx.user.id, input.id, {
+        logger: (ctx.req as any)?.log,
+        requestId: (ctx as any).requestId,
+      });
     }),
 
   // 📦 Listar ordens do usuário

@@ -108,6 +108,57 @@ npm run dev:full
    - Checkout → (com Stripe configurado) abre o pagamento → ao finalizar, volte no pedido em “Orders”
    - (Opcional) Admin → criar/editar produto/categoria
 
+## Fluxos críticos (checkout / estoque / webhook)
+
+### Invariantes
+
+- **Baixa de estoque**: acontece no `POST /api/checkout` dentro de transação, com update condicional (`stock >= quantity`) para evitar corrida.
+- **Falha por estoque**: se perder a corrida, o checkout falha com `409 CONFLICT` (estoque nunca fica negativo).
+- **Reserva vs pagamento**: o pedido nasce como `PENDING` e o estoque é “reservado” no checkout; o status muda via webhook `checkout.session.completed`.
+- **Restauração de estoque**: no webhook `checkout.session.expired`, se o pedido ainda está `PENDING`, ele vira `CANCELLED` e o estoque volta via `OrderItems`.
+- **Idempotência de webhook**: o backend persiste `StripeWebhookEvent` por `event.id` e ignora duplicados (mesmo evento não processa duas vezes).
+
+### Observabilidade (correlação)
+
+- Logs estruturados carregam, quando disponível: `requestId`, `userId`, `orderId`, `productId`, `stripeEventId`, `action`, `status`.
+- O `requestId` é propagado do HTTP para o contexto do tRPC e para a service-layer.
+
+### Diagrama (alto nível)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant C as Cliente
+  participant API as Backend
+  participant DB as Postgres
+  participant S as Stripe
+
+  C->>API: POST /api/checkout
+  API->>DB: TX: cria Order(PENDING)+OrderItems
+  API->>DB: TX: updateMany Product (stock >= qty) decrement
+  alt Estoque insuficiente
+    API-->>C: 409 CONFLICT
+  else OK
+    API->>DB: TX: limpa carrinho
+    API->>S: cria Checkout Session (opcional)
+    API-->>C: 201 { order, checkoutUrl? }
+  end
+
+  S-->>API: webhook checkout.session.completed (event.id)
+  API->>DB: TX: insert StripeWebhookEvent(event.id) [unique]
+  alt Duplicado
+    API-->>S: 200 { duplicate: true }
+  else Primeiro processamento
+    API->>DB: TX: Order(PENDING)->PROCESSING (se paid)
+    API-->>S: 200 { duplicate: false }
+  end
+
+  S-->>API: webhook checkout.session.expired (event.id)
+  API->>DB: TX: insert StripeWebhookEvent(event.id) [unique]
+  API->>DB: TX: se Order=PENDING -> CANCELLED + restore estoque
+  API-->>S: 200
+```
+
 ## Credenciais do seed
 
 - Usuário teste: `test.user1@example.com` / `senha123`

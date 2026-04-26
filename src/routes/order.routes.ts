@@ -69,6 +69,8 @@ export function createStripeWebhookRouter() {
   const router = Router();
 
   router.post('/webhooks/stripe', express.raw({ type: 'application/json' }), asyncHandler(async (req, res) => {
+    const requestId = (req as any).id ? String((req as any).id) : undefined;
+
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
     const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -97,6 +99,13 @@ export function createStripeWebhookRouter() {
         });
       } catch (err: any) {
         if (err?.code === 'P2002') {
+          req.log?.info({
+            action: 'webhook_duplicate',
+            requestId,
+            stripeEventId: event.id,
+            type: event.type,
+            status: 'ignored',
+          }, 'webhook');
           return { duplicate: true };
         }
         throw err;
@@ -114,7 +123,7 @@ export function createStripeWebhookRouter() {
             orderId,
             paymentId,
             paid: session.payment_status === 'paid',
-          }, tx);
+          }, tx, { logger: req.log as any, requestId, stripeEventId: event.id });
         }
       }
 
@@ -122,7 +131,7 @@ export function createStripeWebhookRouter() {
         const session = event.data.object as Stripe.Checkout.Session;
         const orderId = session.metadata?.orderId;
         if (typeof orderId === 'string' && orderId.trim().length > 0) {
-          await orderService.cancelPendingOrderAndRestoreStock(orderId, tx);
+          await orderService.cancelPendingOrderAndRestoreStock(orderId, tx, { logger: req.log as any, requestId, stripeEventId: event.id });
         }
       }
 
