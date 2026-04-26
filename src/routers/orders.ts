@@ -36,11 +36,6 @@ export const orderRouter = router({
           const unitDiscount = unitPrice.mul(new Decimal(product.discount.toString()).div(100));
           const unitFinal = unitPrice.sub(unitDiscount);
 
-          // estoque
-          if (product.stock < item.quantity) {
-            throw new TRPCError({ code: 'CONFLICT', message: `Estoque insuficiente para o produto: ${product.name}` });
-          }
-
           subtotal = subtotal.add(unitPrice.mul(item.quantity));
           discountTotal = discountTotal.add(unitDiscount.mul(item.quantity));
 
@@ -70,10 +65,13 @@ export const orderRouter = router({
 
         // Baixa de estoque
         for (const item of cart.items) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { decrement: item.quantity } }
+          const updated = await tx.product.updateMany({
+            where: { id: item.productId, stock: { gte: item.quantity } },
+            data: { stock: { decrement: item.quantity } },
           });
+          if (updated.count !== 1) {
+            throw new TRPCError({ code: 'CONFLICT', message: `Estoque insuficiente para o produto: ${item.product.name}` });
+          }
         }
 
         // Limpa carrinho

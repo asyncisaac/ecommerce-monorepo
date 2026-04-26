@@ -54,6 +54,27 @@ export const cartRouter = router({
       variantId: z.string().optional()
     }))
     .mutation(async ({ ctx, input }) => {
+      const product = await prisma.product.findUnique({
+        where: { id: input.productId },
+        select: { id: true, name: true, stock: true },
+      });
+      if (!product) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Produto não encontrado' });
+      }
+      if (product.stock <= 0) {
+        throw new TRPCError({ code: 'CONFLICT', message: `Produto sem estoque: ${product.name}` });
+      }
+
+      if (input.variantId) {
+        const variant = await prisma.productVariant.findFirst({
+          where: { id: input.variantId, productId: input.productId },
+          select: { id: true },
+        });
+        if (!variant) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Variação não encontrada' });
+        }
+      }
+
       // 1. Busca ou cria carrinho
       let cart = await prisma.cart.findUnique({
         where: { userId: ctx.user.id }
@@ -75,12 +96,20 @@ export const cartRouter = router({
       });
 
       if (existingItem) {
+        const nextQty = existingItem.quantity + input.quantity;
+        if (nextQty > product.stock) {
+          throw new TRPCError({ code: 'CONFLICT', message: `Estoque insuficiente para o produto: ${product.name}` });
+        }
         // Atualiza quantidade se já existe
         return await prisma.cartItem.update({
           where: { id: existingItem.id },
-          data: { quantity: existingItem.quantity + input.quantity },
+          data: { quantity: nextQty },
           include: { product: true }
         });
+      }
+
+      if (input.quantity > product.stock) {
+        throw new TRPCError({ code: 'CONFLICT', message: `Estoque insuficiente para o produto: ${product.name}` });
       }
 
       // 3. Adiciona novo item
