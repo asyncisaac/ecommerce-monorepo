@@ -5,24 +5,6 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 
-// Rate limiting simples em memória para rotas públicas sensíveis
-const WINDOW_MS = 15 * 60 * 1000; // 15 minutos
-const MAX_ATTEMPTS = 20;
-const attempts = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(ip: string) {
-  const now = Date.now();
-  const rec = attempts.get(ip);
-  if (!rec || rec.resetAt < now) {
-    attempts.set(ip, { count: 1, resetAt: now + WINDOW_MS });
-    return;
-  }
-  if (rec.count >= MAX_ATTEMPTS) {
-    throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Muitas tentativas. Tente novamente mais tarde.' });
-  }
-  rec.count += 1;
-}
-
 function getBcryptRounds(): number {
   const roundsRaw = Number(process.env.BCRYPT_ROUNDS ?? '12');
   return Number.isFinite(roundsRaw) && roundsRaw >= 10 && roundsRaw <= 14 ? roundsRaw : 12;
@@ -51,9 +33,6 @@ export const authRouter = router({
   register: publicProcedure
     .input(registerSchema)
     .mutation(async ({ input, ctx }) => {
-      const ip = ctx.req?.ip ?? 'unknown';
-      checkRateLimit(ip);
-
       const email = input.email.trim().toLowerCase();
       const name = input.name.trim();
       const password = input.password;
@@ -92,9 +71,6 @@ export const authRouter = router({
   login: publicProcedure
     .input(loginSchema)
     .mutation(async ({ input, ctx }) => {
-      const ip = ctx.req?.ip ?? 'unknown';
-      checkRateLimit(ip);
-
       const email = input.email.trim().toLowerCase();
       const password = input.password;
       
@@ -145,8 +121,6 @@ export const authRouter = router({
   refresh: publicProcedure
     .input(refreshSchema)
     .mutation(async ({ input, ctx }) => {
-      const ip = ctx.req?.ip ?? 'unknown';
-      checkRateLimit(ip);
       const { refreshToken } = input;
       const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
