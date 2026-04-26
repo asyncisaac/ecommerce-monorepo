@@ -165,6 +165,15 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+model StripeWebhookEvent {
+  id        String   @id
+  type      String
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@map("stripe_webhook_events")
+}
+
 enum UserRole {
   CUSTOMER
   ADMIN

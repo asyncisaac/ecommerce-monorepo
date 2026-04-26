@@ -2,6 +2,9 @@ import { prisma } from '../../lib/prisma.js';
 import { Decimal } from 'decimal.js';
 import Stripe from 'stripe';
 import { TRPCError } from '@trpc/server';
+import type { Prisma, PrismaClient } from '@prisma/client';
+
+type DbClient = PrismaClient | Prisma.TransactionClient;
 
 export async function checkout(userId: string) {
   const cart = await prisma.cart.findUnique({
@@ -182,32 +185,42 @@ export async function byId(userId: string, orderId: string) {
   return order;
 }
 
-export async function markStripeSessionCompleted(params: { orderId: string; paymentId: string; paid: boolean }) {
+export async function markStripeSessionCompleted(
+  params: { orderId: string; paymentId: string; paid: boolean },
+  db: DbClient = prisma,
+) {
   const nextStatus = params.paid ? 'PROCESSING' : 'PENDING';
-  await prisma.order.updateMany({
+  await db.order.updateMany({
     where: { id: params.orderId, status: 'PENDING' },
     data: { status: nextStatus as any, paymentId: params.paymentId },
   });
 }
 
-export async function cancelPendingOrderAndRestoreStock(orderId: string) {
-  await prisma.$transaction(async (tx) => {
-    const order = await tx.order.findFirst({
-      where: { id: orderId, status: 'PENDING' },
-      include: { items: true },
-    });
-    if (!order) return;
-
-    await tx.order.update({
-      where: { id: order.id },
-      data: { status: 'CANCELLED' as any },
-    });
-
-    for (const item of order.items) {
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stock: { increment: item.quantity } },
-      });
-    }
+async function cancelPendingOrderAndRestoreStockInner(db: Prisma.TransactionClient, orderId: string) {
+  const order = await db.order.findFirst({
+    where: { id: orderId, status: 'PENDING' },
+    include: { items: true },
   });
+  if (!order) return;
+
+  await db.order.update({
+    where: { id: order.id },
+    data: { status: 'CANCELLED' as any },
+  });
+
+  for (const item of order.items) {
+    await db.product.update({
+      where: { id: item.productId },
+      data: { stock: { increment: item.quantity } },
+    });
+  }
+}
+
+export async function cancelPendingOrderAndRestoreStock(orderId: string, db: DbClient = prisma) {
+  if ('$transaction' in db) {
+    await (db as PrismaClient).$transaction((tx) => cancelPendingOrderAndRestoreStockInner(tx, orderId));
+    return;
+  }
+
+  await cancelPendingOrderAndRestoreStockInner(db as Prisma.TransactionClient, orderId);
 }

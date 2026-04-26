@@ -7,6 +7,9 @@ describe.skipIf(!hasDb)('Checkout & Orders', () => {
   it('adiciona itens ao carrinho, faz checkout, lista e detalha ordens, e valida estoque/carrinho', async () => {
     const { headers } = await login('test.user1@example.com', 'senha123');
 
+    const clear = await request.delete('/api/cart').set(headers);
+    expect(clear.statusCode).toBe(200);
+
     // Listar produtos e escolher um com estoque > 0
     const list = await request.get('/api/products').set(headers);
     expect(list.statusCode).toBe(200);
@@ -14,6 +17,10 @@ describe.skipIf(!hasDb)('Checkout & Orders', () => {
     const desiredQty = 2;
     const prod = products.find((p: any) => (p.stock ?? 0) >= desiredQty) ?? products.find((p: any) => (p.stock ?? 0) > 0);
     expect(prod?.id).toBeTruthy();
+
+    const prodBefore = await request.get(`/api/products/${prod.id}`).set(headers);
+    expect(prodBefore.statusCode).toBe(200);
+    const stockBefore = Number(prodBefore.body?.stock);
 
     const qty = Math.min(desiredQty, Number(prod.stock ?? 1));
     // Adicionar unidades ao carrinho
@@ -57,6 +64,6 @@ describe.skipIf(!hasDb)('Checkout & Orders', () => {
     // Estoque do produto deve ter diminuído (2 unidades)
     const prodAfter = await request.get(`/api/products/${prod.id}`).set(headers);
     expect(prodAfter.statusCode).toBe(200);
-    expect(prodAfter.body?.stock).toBe(prod.stock - qty);
+    expect(prodAfter.body?.stock).toBe(stockBefore - qty);
   });
 });

@@ -17,7 +17,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "promote:admin": "tsx scripts/promote-admin.ts",
-    "test": "vitest run",
+    "test": "vitest run --maxWorkers=1 --maxConcurrency=1",
     "test:full": "npm run test && npm run lint"
   },
   "keywords": [],

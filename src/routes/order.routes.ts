@@ -3,17 +3,52 @@ import Stripe from 'stripe';
 import { asyncHandler } from '../lib/asyncHandler.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import * as orderService from '../modules/order/order.service.js';
+import { prisma } from '../lib/prisma.js';
 
 export function createOrderRouter() {
   const router = Router();
 
   router.post('/checkout', requireAuth, asyncHandler(async (req, res) => {
+    req.log?.info({
+      event: 'order_checkout_start',
+      requestId: (req as any).id,
+      userId: req.trpc!.ctx.user!.id,
+      ip: req.ip,
+      ua: req.headers['user-agent'],
+    }, 'checkout start');
+
     const result = await req.trpc!.caller.order.checkout();
+
+    req.log?.info({
+      event: 'order_checkout_success',
+      requestId: (req as any).id,
+      userId: req.trpc!.ctx.user!.id,
+      orderId: (result as any)?.id,
+      paymentProvider: (result as any)?.paymentProvider,
+    }, 'checkout success');
+
     res.status(201).json(result);
   }));
 
   router.post('/orders/:id/pay', requireAuth, asyncHandler(async (req, res) => {
+    req.log?.info({
+      event: 'order_pay_start',
+      requestId: (req as any).id,
+      userId: req.trpc!.ctx.user!.id,
+      orderId: String(req.params.id),
+      ip: req.ip,
+      ua: req.headers['user-agent'],
+    }, 'pay start');
+
     const result = await req.trpc!.caller.order.pay({ id: String(req.params.id) });
+
+    req.log?.info({
+      event: 'order_pay_success',
+      requestId: (req as any).id,
+      userId: req.trpc!.ctx.user!.id,
+      orderId: String(req.params.id),
+    }, 'pay success');
+
     res.status(201).json(result);
   }));
 
@@ -55,31 +90,54 @@ export function createStripeWebhookRouter() {
       return res.status(400).json({ error: e?.message ?? 'Webhook inválido' });
     }
 
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const orderId = session.metadata?.orderId;
-      if (typeof orderId === 'string' && orderId.trim().length > 0) {
-        const paymentId =
-          (typeof session.payment_intent === 'string' && session.payment_intent)
-            ? session.payment_intent
-            : session.id;
-        await orderService.markStripeSessionCompleted({
-          orderId,
-          paymentId,
-          paid: session.payment_status === 'paid',
+    const result = await prisma.$transaction(async (tx) => {
+      try {
+        await tx.stripeWebhookEvent.create({
+          data: { id: event.id, type: event.type },
         });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          return { duplicate: true };
+        }
+        throw err;
       }
-    }
 
-    if (event.type === 'checkout.session.expired') {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const orderId = session.metadata?.orderId;
-      if (typeof orderId === 'string' && orderId.trim().length > 0) {
-        await orderService.cancelPendingOrderAndRestoreStock(orderId);
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const orderId = session.metadata?.orderId;
+        if (typeof orderId === 'string' && orderId.trim().length > 0) {
+          const paymentId =
+            (typeof session.payment_intent === 'string' && session.payment_intent)
+              ? session.payment_intent
+              : session.id;
+          await orderService.markStripeSessionCompleted({
+            orderId,
+            paymentId,
+            paid: session.payment_status === 'paid',
+          }, tx);
+        }
       }
-    }
 
-    return res.json({ received: true });
+      if (event.type === 'checkout.session.expired') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const orderId = session.metadata?.orderId;
+        if (typeof orderId === 'string' && orderId.trim().length > 0) {
+          await orderService.cancelPendingOrderAndRestoreStock(orderId, tx);
+        }
+      }
+
+      return { duplicate: false };
+    });
+
+    req.log?.info({
+      event: 'stripe_webhook_processed',
+      stripeEventId: event.id,
+      stripeEventType: event.type,
+      duplicate: result.duplicate,
+      requestId: (req as any).id,
+    }, 'stripe webhook');
+
+    return res.json({ received: true, ...result });
   }));
 
   return router;
