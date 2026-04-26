@@ -2,7 +2,7 @@ import express, { Router } from 'express';
 import Stripe from 'stripe';
 import { asyncHandler } from '../lib/asyncHandler.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { prisma } from '../lib/prisma.js';
+import * as orderService from '../modules/order/order.service.js';
 
 export function createOrderRouter() {
   const router = Router();
@@ -63,10 +63,10 @@ export function createStripeWebhookRouter() {
           (typeof session.payment_intent === 'string' && session.payment_intent)
             ? session.payment_intent
             : session.id;
-        const nextStatus = session.payment_status === 'paid' ? 'PROCESSING' : 'PENDING';
-        await prisma.order.updateMany({
-          where: { id: orderId, status: 'PENDING' },
-          data: { status: nextStatus as any, paymentId },
+        await orderService.markStripeSessionCompleted({
+          orderId,
+          paymentId,
+          paid: session.payment_status === 'paid',
         });
       }
     }
@@ -75,10 +75,7 @@ export function createStripeWebhookRouter() {
       const session = event.data.object as Stripe.Checkout.Session;
       const orderId = session.metadata?.orderId;
       if (typeof orderId === 'string' && orderId.trim().length > 0) {
-        await prisma.order.updateMany({
-          where: { id: orderId, status: 'PENDING' },
-          data: { status: 'CANCELLED' as any },
-        });
+        await orderService.cancelPendingOrderAndRestoreStock(orderId);
       }
     }
 
