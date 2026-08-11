@@ -1,276 +1,416 @@
-# Ecommerce (Fullstack) — Express + tRPC + Prisma + Next.js
+<div align="center">
 
-![CI](../../actions/workflows/ci.yml/badge.svg)
+# 🛒 E-commerce Platform (Full-Stack)
 
-Projeto fullstack com backend em Node.js/TypeScript (Express + tRPC + Prisma/Postgres) e frontend em Next.js.
+**Production-ready online store with Stripe checkout, race-condition-safe stock & idempotent webhooks**
 
-## Stack
+[![CI](https://img.shields.io/github/actions/workflow/status/asyncisaac/ecommerce-monorepo/ci.yml?style=for-the-badge&label=CI&logo=github)](https://github.com/asyncisaac/ecommerce-monorepo/actions)
+[![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![tRPC](https://img.shields.io/badge/tRPC-2596BE?style=for-the-badge&logo=trpc&logoColor=white)](https://trpc.io/)
+[![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Stripe](https://img.shields.io/badge/Stripe-626CD9?style=for-the-badge&logo=stripe&logoColor=white)](https://stripe.com/)
+[![Docker](https://img.shields.io/badge/Docker-2CA5E0?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
+[![Vitest](https://img.shields.io/badge/Vitest-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
 
-- **Backend**: Express, tRPC, Prisma, JWT, Helmet, CORS, rate limit, pino
-- **Frontend**: Next.js, React
-- **Banco**: PostgreSQL (Docker Compose incluído)
-- **Testes**: Vitest + Supertest (E2E via endpoints HTTP)
+**[🚀 Live Demo](https://your-ecommerce-demo.com)** · **[👤 Demo Login](#-demo-credentials)** · **[⭐ Architecture](#-architecture)** · **[🛠️ Run Locally](#-running-locally)**
 
-## Estrutura
+</div>
 
-- `src/` → backend (Express + tRPC)
-- `prisma/` → schema e seed
-- `frontend/` → app Next.js
+---
 
-## Requisitos
+> ⚠️ **Screenshots coming soon.** Replace with real product screenshots, cart, checkout, admin dashboard:
+> ```
+> ![Storefront](https://your-image-host.com/storefront.png)
+> ![Product Page](https://your-image-host.com/product-page.png)
+> ![Checkout Flow](https://your-image-host.com/checkout.png)
+> ![Admin Dashboard](https://your-image-host.com/admin-dashboard.png)
+> ```
 
-- Node.js **>= 18** (recomendado: 22)
-- PostgreSQL **ou** Docker Desktop (recomendado para rodar local)
+---
 
-## Configuração de ambiente
+## 🎯 What It Does
 
-Você tem 2 jeitos:
+A real, production-shape e-commerce monorepo: **Next.js storefront on the frontend, Express + tRPC API on the backend, PostgreSQL with Prisma, and real Stripe checkout**.
 
-### Opção A) Criar `.env` (recomendado)
+This is **not** a React "shopping cart tutorial." The interesting parts are the things that break under real load:
 
-Copie `.env.example` para `.env` e preencha:
+- **Stock concurrency protection** — two users checking out the last item at the same time → one wins cleanly (409 CONFLICT), never negative stock
+- **Stripe checkout + webhooks** — paid, expired, and replayed webhooks all handled correctly
+- **Idempotent webhook processing** — Stripe sends the same webhook twice? Second one is a no-op
+- **Stock reservation + restore on expiry** — when a checkout session expires, reserved stock returns to inventory automatically
 
-```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ecommerce?schema=public
-JWT_SECRET=coloque_uma_chave_com_pelo_menos_16_chars
+### Why I Built This
+
+Every "React e-commerce tutorial" ends at "add to cart." Real stores need to survive:
+
+> "What if 3 people click 'Buy Now' on the last in-stock item **at exactly the same time**?"
+
+> "What if Stripe sends `checkout.session.completed` twice because my API was slow the first time?"
+
+> "What if a user starts checkout and abandons it — when does their reserved stock come back?"
+
+This project answers all three with database-enforced correctness.
+
+---
+
+## 🏗️ Architecture
+
+### High-Level Overview
+```mermaid
+flowchart TB
+    U[Customer Browser] -->|Next.js SSR/CSR| FE[Next.js Frontend<br/>App Router]
+    FE -->|tRPC + fetch| API[Express + tRPC Backend]
+    API -->|JWT auth + cookies| AUTH[Auth Layer]
+    API -->|cart + products + orders| DB[(PostgreSQL<br/>Prisma ORM)]
+    API -->|Stripe Checkout Session| STRIPE[Stripe API]
+    STRIPE -->|Webhooks (at-least-once delivery)| WEBHOOK[POST /api/webhooks/stripe<br/>stripe-signature verified]
+    WEBHOOK -->|DB transaction| DB
+
+    subgraph DB_Safety[Database-enforced correctness]
+        direction TB
+        STOCK[Stock decrement<br/>UPDATE ... WHERE stock >= qty]
+        HOOK[StripeWebhookEvent<br/>UNIQUE(event.id)]
+        RESERVE[Order PENDING → stock reserved]
+        RESTORE[Order CANCELLED → stock returned<br/>on checkout.session.expired]
+    end
+
+    ADMIN[Admin User] -->|Admin routes| API
 ```
 
-Opcional:
+### Critical Checkout Flow (With Race Handling)
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Customer
+    participant API as Backend
+    participant DB as Postgres
+    participant S as Stripe
+
+    C->>API: POST /api/checkout (items in cart)
+    API->>DB: BEGIN TRANSACTION
+    API->>DB: INSERT Order (status=PENDING) + OrderItems
+    API->>DB: UPDATE Product SET stock = stock - qty<br/>WHERE id = ? AND stock >= qty
+    alt Any row affected = 0 (stock race lost)
+        DB-->>API: 0 rows updated
+        API->>DB: ROLLBACK
+        API-->>C: ⚠️ 409 CONFLICT<br/>"Out of stock — someone beat you to it"
+    else All stock decrements OK
+        API->>DB: DELETE Cart / CartItems
+        API->>S: Create Checkout Session (orderId → metadata)
+        API->>DB: COMMIT
+        API-->>C: 201 { order, checkoutUrl }
+        C->>S: Pay via Stripe Checkout
+    end
+
+    Note over S,DB: ↓ Webhooks arrive at-least-once (Stripe retries)
+
+    S->>API: webhook checkout.session.completed<br/>(Stripe-Signature verified)
+    API->>DB: BEGIN TX
+    API->>DB: INSERT StripeWebhookEvent(event.id) [UNIQUE]
+    alt UNIQUE violation → duplicate webhook
+        API->>DB: ROLLBACK
+        API-->>S: 200 OK (duplicate, already processed)
+    else First time processing
+        API->>DB: UPDATE Order PENDING → PROCESSING<br/>WHERE status = PENDING
+        API->>DB: COMMIT
+        API-->>S: 200 OK
+    end
+
+    Note over S,DB: ↓ Abandoned checkout → stock comes back
+
+    S->>API: webhook checkout.session.expired
+    API->>DB: BEGIN TX
+    API->>DB: INSERT StripeWebhookEvent(event.id) [UNIQUE]
+    API->>DB: UPDATE Order → CANCELLED WHERE status = PENDING
+    API->>DB: UPDATE Product SET stock = stock + qty<br/>via OrderItems join
+    API->>DB: COMMIT
+```
+
+### Engineering Decisions
+
+| Decision | Why |
+|----------|-----|
+| **`UPDATE ... WHERE stock >= qty` instead of `SELECT` → check → `UPDATE`** | Removes the TOCTOU race. Two concurrent checkouts both execute the same statement — Postgres serializes it; one gets 0 rows. |
+| **Stock reserved at checkout, not at payment** | User in the checkout flow shouldn't lose the item to someone else while entering the card. |
+| **`checkout.session.expired` restores stock** | No inventory leak from abandoned checkouts. |
+| **`StripeWebhookEvent(event.id)` UNIQUE** | Stripe guarantees at-least-once delivery. The DB guarantees at-most-once processing. |
+| **Stripe signature verification on webhooks** | Webhook endpoint isn't callable by anyone on the internet. |
+| **Whole checkout in one DB transaction** | Partial state is impossible. Either: cart→order→stock→checkout all succeed, or nothing does. |
+
+---
+
+## ✨ Core Features
+
+### 🛍️ Storefront
+- Product browsing, search, sort, filter by category
+- Product detail page with variants (optional)
+- Persistent cart (guest cart → merges on login)
+- Real Stripe Checkout page integration
+- Order history & order detail view for logged-in users
+- Responsive, mobile-first UI
+
+### 🔒 Authentication
+- Register / Login / Logout
+- JWT access token + httpOnly refresh token (rotating)
+- Password hashing (argon2/bcrypt)
+- Current user session via `/api/auth/me`
+
+### ⚡ Stock & Checkout (The Hard Parts)
+- **Atomic stock decrement** (no `SELECT-then-UPDATE`, no negative stock)
+- **Checkout stock reservation** (holds stock during Stripe flow)
+- **Automatic stock restore** when Stripe checkout expires
+- **409 CONFLICT** response on lost stock race (UX can tell user "someone just bought this")
+- Order status machine: `PENDING → PROCESSING → PAID/SHIPPED` (or `CANCELLED`)
+
+### 💸 Stripe Integration
+- Server-side Checkout Session creation
+- Signed webhook verification (`stripe-signature`)
+- Idempotent webhook event processing (by `event.id`)
+- Handles three webhook types:
+  - `checkout.session.completed` → mark order PAID
+  - `checkout.session.expired` → cancel + restore stock
+  - `checkout.session.async_payment_failed` → cancel + restore stock
+
+### 🛠️ Admin Panel
+- Admin role required (role-based access control)
+- Full CRUD on products & categories
+- Order listing with status filter
+- Create/edit variants, pricing, stock levels
+
+### 📜 Observability
+- **Structured JSON logging** (pino) with correlation IDs
+- Every log carries, when available: `requestId`, `userId`, `orderId`, `productId`, `stripeEventId`
+- `requestId` propagates: HTTP → tRPC context → service layer → logs
+- `/healthz` endpoint for load balancer / uptime checks
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | Next.js 14+ (App Router) · React 18 · TypeScript |
+| **Backend** | Node.js · Express · tRPC (end-to-end type-safe) |
+| **Auth** | JWT (access) · rotating httpOnly refresh cookie · argon2 |
+| **Database** | PostgreSQL 15+ · Prisma ORM · transactions · row-level logic |
+| **Payments** | Stripe Checkout API + signed webhooks |
+| **Validation** | Zod (API + webhook payloads) |
+| **Logging** | pino (structured JSON) |
+| **Security** | Helmet · CORS · rate-limit · cookie flags |
+| **Tests** | Vitest · Supertest (HTTP E2E against real Postgres) |
+| **DevOps** | Docker Compose · GitHub Actions CI (lint → test → build) |
+
+---
+
+## 🚀 Live Demo
+
+> ⚠️ **Deploy first, then fill this in.**
+>
+> | Resource | URL |
+> |----------|-----|
+> | Storefront | `https://your-ecommerce-demo.com` |
+> | Backend API | `https://your-ecommerce-demo.com/api` |
+> | Health check | `https://your-ecommerce-demo.com/healthz` |
+>
+> Stripe is in **test mode** on the demo — use card `4242 4242 4242 4242` + any future date/CVC to test a successful checkout.
+
+---
+
+## 🔑 Demo Credentials
+
+Seed data includes these accounts (when you run the seed):
+
+| Role | Email | Password |
+|------|-------|----------|
+| 👤 Regular user | `test.user1@example.com` | `senha123` |
+| 🛠️ Admin | `admin@example.com` | `admin123` |
+
+---
+
+## ⚙️ Running Locally
+
+### Prerequisites
+- Node.js 18+ (recommended 22)
+- Docker Desktop (for Postgres)
+
+### 1. Start PostgreSQL
+```bash
+docker compose up -d
+```
+
+### 2. Environment
+Copy `.env.example` → `.env` and fill:
 ```env
-PORT=3001
-CORS_ORIGIN=http://localhost:3000
-COOKIE_SECURE=false
-APP_URL=http://localhost:3000
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ecommerce?schema=public
+JWT_SECRET=a_secure_random_string_at_least_16_chars
 
-# Pagamentos (Stripe sandbox) — se não configurar, o checkout cria o pedido sem pagamento
+# Optional — Stripe test mode (checkout falls back to "order only" if unset)
 # STRIPE_SECRET_KEY=sk_test_...
 # STRIPE_WEBHOOK_SECRET=whsec_...
 ```
 
-### Opção B) Definir no PowerShell (Windows)
-
-```powershell
-$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/ecommerce?schema=public"
-$env:JWT_SECRET="uma_chave_segura_com_pelo_menos_16_chars"
-```
-
-Importante: o **Prisma CLI** (comandos `db:push`, `seed`, etc.) precisa do `DATABASE_URL` definido, senão vai dar erro `P1012 Environment variable not found: DATABASE_URL`.
-
-## Rodando local (tutorial)
-
-Se você estiver no Windows e o projeto estiver dentro de duas pastas parecidas, a “raiz do projeto” é a pasta **que contém** `package.json`, `frontend/` e `docker-compose.yml`:
-
-`...\ecommerce-monorepo-main\ecommerce-monorepo-main\`
-
-### 1) Subir o banco (Docker)
-
-Com o Docker Desktop aberto:
-
-```powershell
-docker compose up -d
-```
-
-### 2) Instalar dependências
-
-```powershell
+### 3. Install + Database
+```bash
 npm install
 npm --prefix frontend install
-```
-
-### 3) Prisma (gerar client + criar tabelas + seed)
-
-```powershell
 npm run db:generate
 npm run db:push
 npm run seed
 ```
 
-### 4) Rodar tudo (backend + frontend)
-
-```powershell
+### 4. Run Everything
+```bash
 npm run dev:full
 ```
+- **Frontend**: http://localhost:3000
+- **Backend**: http://localhost:3001
+- **Health**: http://localhost:3001/healthz
 
-### URLs
+---
 
-- Frontend: http://localhost:3000
-- Backend: http://localhost:3001
-
-## Demo em 2 minutos (pra portfólio)
-
-1) Suba o projeto com `npm run dev:full`
-2) Abra http://localhost:3000
-3) Faça o fluxo:
-   - Login
-   - Listar produtos → abrir um produto
-   - Adicionar ao carrinho → abrir carrinho
-   - Checkout → (com Stripe configurado) abre o pagamento → ao finalizar, volte no pedido em “Orders”
-   - (Opcional) Admin → criar/editar produto/categoria
-
-## Fluxos críticos (checkout / estoque / webhook)
-
-### Invariantes
-
-- **Baixa de estoque**: acontece no `POST /api/checkout` dentro de transação, com update condicional (`stock >= quantity`) para evitar corrida.
-- **Falha por estoque**: se perder a corrida, o checkout falha com `409 CONFLICT` (estoque nunca fica negativo).
-- **Reserva vs pagamento**: o pedido nasce como `PENDING` e o estoque é “reservado” no checkout; o status muda via webhook `checkout.session.completed`.
-- **Restauração de estoque**: no webhook `checkout.session.expired`, se o pedido ainda está `PENDING`, ele vira `CANCELLED` e o estoque volta via `OrderItems`.
-- **Idempotência de webhook**: o backend persiste `StripeWebhookEvent` por `event.id` e ignora duplicados (mesmo evento não processa duas vezes).
-
-### Observabilidade (correlação)
-
-- Logs estruturados carregam, quando disponível: `requestId`, `userId`, `orderId`, `productId`, `stripeEventId`, `action`, `status`.
-- O `requestId` é propagado do HTTP para o contexto do tRPC e para a service-layer.
-
-Exemplo (pino JSON):
-
-```json
-{"level":30,"event":"order_checkout_start","requestId":"3f0db0a7-0db8-4c74-8f4c-6622e82f10e9","userId":"usr_123","msg":"checkout start"}
-{"level":30,"action":"order_created","requestId":"3f0db0a7-0db8-4c74-8f4c-6622e82f10e9","userId":"usr_123","orderId":"ord_456","status":"PENDING","msg":"checkout"}
-{"level":30,"action":"webhook_duplicate","requestId":"a1b2c3","stripeEventId":"evt_789","type":"checkout.session.completed","status":"ignored","msg":"webhook"}
-```
-
-### Diagrama (alto nível)
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant C as Cliente
-  participant API as Backend
-  participant DB as Postgres
-  participant S as Stripe
-
-  C->>API: POST /api/checkout
-  API->>DB: TX: cria Order(PENDING)+OrderItems
-  API->>DB: TX: updateMany Product (stock >= qty) decrement
-  alt Estoque insuficiente
-    API-->>C: 409 CONFLICT
-  else OK
-    API->>DB: TX: limpa carrinho
-    API->>S: cria Checkout Session (opcional)
-    API-->>C: 201 { order, checkoutUrl? }
-  end
-
-  S-->>API: webhook checkout.session.completed (event.id)
-  API->>DB: TX: insert StripeWebhookEvent(event.id) [unique]
-  alt Duplicado
-    API-->>S: 200 { duplicate: true }
-  else Primeiro processamento
-    API->>DB: TX: Order(PENDING)->PROCESSING (se paid)
-    API-->>S: 200 { duplicate: false }
-  end
-
-  S-->>API: webhook checkout.session.expired (event.id)
-  API->>DB: TX: insert StripeWebhookEvent(event.id) [unique]
-  API->>DB: TX: se Order=PENDING -> CANCELLED + restore estoque
-  API-->>S: 200
-```
-
-## Credenciais do seed
-
-- Usuário teste: `test.user1@example.com` / `senha123`
-- Admin: `admin@example.com` / `admin123`
-
-## Scripts (backend raiz)
-
-- `npm run dev` → backend com `tsx watch`
-- `npm run dev:frontend` → frontend
-- `npm run dev:full` → backend + frontend em paralelo
-- `npm run lint` → lint do frontend
-- `npm run build` → build do backend (tsc)
-- `npm run build:frontend` → build do frontend
-- `npm run build:full` → build backend + frontend
-- `npm run start` → roda backend a partir de `dist/`
-- `npm run test` → vitest
-- `npm run db:generate` → prisma generate
-- `npm run db:push` → prisma db push
-- `npm run db:studio` → prisma studio
-- `npm run seed` → popular banco
-
-## Portas
-
-- Backend usa `PORT` ou **3001** por padrão; se estiver em uso tenta a próxima.
-- Frontend usa **3000** por padrão (Next dev).
-
-## Endpoints HTTP (principais)
-
-### Health
-
-- `GET /healthz` → `ok`
-- `GET /` → status do backend
+## 📘 API Overview
 
 ### Auth
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Create account |
+| POST | `/api/auth/login` | Login (returns access token + sets refresh cookie) |
+| POST | `/api/auth/logout` | Logout (invalidates refresh) |
+| GET  | `/api/auth/me` | Current session |
 
-- `POST /api/auth/register` → `{ name, email, password }`
-- `POST /api/auth/login` → `{ email, password }`
-- `POST /api/auth/refresh` → `{ refreshToken? }` (ou via cookie `refreshToken`)
-- `POST /api/auth/logout` → `{ refreshToken? }` (ou via cookie `refreshToken`)
-- `GET /api/auth/me` → sessão atual (via `Authorization: Bearer <token>`)
+### Store
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET  | `/api/products` | List products (search, sort, category filter) |
+| GET  | `/api/products/:id` | Single product detail |
+| GET  | `/api/categories` | All categories |
 
-### Usuário
+### Cart (🔒 authenticated)
+| Method | Endpoint |
+|--------|----------|
+| GET  | `/api/cart` |
+| POST | `/api/cart/items` |
+| PATCH | `/api/cart/items/:itemId` |
+| DELETE | `/api/cart/items/:itemId` |
 
-- `GET /api/user/me`
-- `PUT /api/user/me`
-- `PUT /api/user/password` → `{ oldPassword, newPassword }`
-
-### Produtos e categorias
-
-- `GET /api/categories`
-- `GET /api/products` (query: `category`, `q`, `sort`)
-- `GET /api/products/:id`
-
-### Carrinho (requer `Authorization: Bearer <token>`)
-
-- `GET /api/cart`
-- `GET /api/cart/summary`
-- `POST /api/cart/items` → `{ productId, quantity, variantId? }`
-- `PATCH /api/cart/items/:itemId` → `{ quantity }`
-- `DELETE /api/cart/items/:itemId`
-- `DELETE /api/cart`
-
-### Checkout e ordens (requer `Authorization: Bearer <token>`)
-
-- `POST /api/checkout`
-- `GET /api/orders`
-- `GET /api/orders/:id`
-- `POST /api/orders/:id/pay` (reabre pagamento do pedido se estiver `PENDING`)
+### Orders & Checkout (🔒)
+| Method | Endpoint | Notes |
+|--------|----------|-------|
+| POST | `/api/checkout` | ⚠️ TX: create PENDING order + atomic stock decrement → Stripe Checkout URL or 409 |
+| GET  | `/api/orders` | My orders |
+| GET  | `/api/orders/:id` | Order detail + items |
 
 ### Webhooks
+| Method | Endpoint | Notes |
+|--------|----------|-------|
+| POST | `/api/webhooks/stripe` | Stripe-signed; idempotent (dedup by `event.id`) |
 
-- `POST /api/webhooks/stripe` (requer assinatura `stripe-signature`)
+### Admin (🔒🛠️)
+- Full CRUD `/api/admin/products` and `/api/admin/categories`
 
-### Admin (requer usuário ADMIN)
+---
 
-- `POST /api/admin/categories`
-- `PATCH /api/admin/categories/:id`
-- `DELETE /api/admin/categories/:id`
-- `POST /api/admin/products`
-- `PATCH /api/admin/products/:id`
-- `DELETE /api/admin/products/:id`
+## 🧪 Tests
 
-## Testes
+Integration tests hit a **real Postgres database** (no mocking):
 
-- Os testes E2E dependem de Postgres.
-- Se não houver banco rodando em `localhost:5432`, os testes podem aparecer como `skipped`.
-
-Rodar o pacote completo:
-
-```powershell
+```bash
+# 1. Start Postgres
 docker compose up -d
+
+# 2. Set DATABASE_URL, push schema, seed
 $env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/ecommerce?schema=public"
 npm run db:push
 npm run seed
+
+# 3. Run tests
 npm run test
 ```
 
-## Postman
+### Test Coverage Highlights
 
-- Importe [postman_collection.json](file:///c:/Users/isaac/Área%20de%20Trabalho/Dev/ecommerce-monorepo-main/ecommerce-monorepo-main/postman_collection.json)
-- Defina `baseUrl` (ex: `http://localhost:3001`) e `token`
+| Scenario | What it proves |
+|----------|---------------|
+| ✅ Register → Login → Me | Auth lifecycle works |
+| ✅ Add to cart → Cart summary | Persistent cart correct |
+| ✅ **2 concurrent checkouts on last-in-stock item** | **One succeeds (201), one gets 409** → stock never goes negative |
+| ✅ Stock decrement + cart cleared in same TX | Partial state impossible |
+| ✅ Stripe webhook `completed` → Order PROCESSING | Webhook handler correct |
+| ✅ **Same webhook sent twice** (by Stripe) | 2nd is no-op → idempotency by `event.id` |
+| ✅ Stripe webhook `expired` → stock restored | No inventory leak on abandoned checkout |
+| ✅ Forged Stripe webhook signature → 403 rejected | Webhook integrity enforced |
+| ✅ Non-admin hits `/api/admin/products` → 403 | RBAC works |
 
-## Troubleshooting rápido
+---
 
-- **`npm error enoent ... package.json`**: você rodou o comando na pasta errada. Entre em `...\ecommerce-monorepo-main\ecommerce-monorepo-main\`.
-- **`P1012 Environment variable not found: DATABASE_URL`**: defina `DATABASE_URL` no `.env` ou no PowerShell antes de rodar comandos Prisma.
-- **`net::ERR_CONNECTION_REFUSED http://localhost:3000`**: o frontend não está rodando. Rode `npm run dev:full` e aguarde “Ready”.
+## 🚢 Deployment
+
+### Recommended Stack
+| Service | Platform | Notes |
+|---------|----------|-------|
+| **Next.js Frontend** | Vercel | One-click Next.js deploy, hooks into repo |
+| **Express API** | Render / Railway / Fly.io | Node service, port `PORT` |
+| **PostgreSQL** | Supabase / Neon / Render Managed | Connection pooling recommended |
+| **Stripe Webhook URL** | Point at `https://your-api.com/api/webhooks/stripe` | **Important**: webhook must be registered in Stripe dashboard with matching signing secret |
+
+### Environment Required in Production
+```env
+DATABASE_URL=postgresql://user:pass@host:5432/db
+JWT_SECRET=long_random_string
+APP_URL=https://your-store.com
+COOKIE_SECURE=true
+CORS_ORIGIN=https://your-store.com
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+### Vercel + Render Setup (Short Version)
+1. **Fork/deploy frontend to Vercel** → set NEXT_PUBLIC_API_URL to your backend
+2. **Deploy backend to Render** → add `DATABASE_URL`, `JWT_SECRET`, `STRIPE_*` env vars
+3. **In Stripe dashboard**: register `https://<render-api>/api/webhooks/stripe` as a webhook endpoint → copy the signing secret
+4. **Run migrations**: `npm run db:push` against production DB on first deploy
+
+---
+
+## 📂 Project Structure
+
+```
+ecommerce-monorepo/
+├── src/                     # Backend (Express + tRPC)
+│   ├── server.ts            # HTTP entry + middleware
+│   ├── trpc/                # tRPC routers + context
+│   ├── routes/              # REST endpoints (auth, webhooks, health)
+│   ├── services/            # Business logic (checkout, stock, orders)
+│   ├── middleware/          # auth, rbac, requestId, cors, error
+│   └── lib/                 # prisma, stripe, pino logger
+├── prisma/
+│   ├── schema.prisma        # Data model
+│   └── seed.ts              # Demo products, users, categories
+├── frontend/                # Next.js App Router store
+│   └── src/app/
+│       ├── (store)/         # home, product, cart, checkout, orders
+│       └── (admin)/         # admin dashboard
+├── docker-compose.yml       # Postgres dev server
+├── package.json
+└── .github/workflows/ci.yml # lint → test → build
+```
+
+---
+
+## 🧠 Key Engineering Takeaways
+
+1. **Race conditions are real, and SELECT-then-UPDATE is always a bug.** Use conditional `UPDATE ... WHERE` in a transaction, or use `SELECT ... FOR UPDATE` row locking.
+2. **Webhooks arrive at-least-once. Plan on it.** Always persist `event.id` UNIQUE before processing, or you'll double-credit / double-ship.
+3. **Stock is money.** If you reserve it at checkout, you **must** have a compensating path to return it. (Stripe checkout expiration is a real thing.)
+4. **Correlation IDs are not optional for debugging.** `requestId` in every log means "find this customer's failed checkout in 5 seconds" instead of "3 hours grep hell."
+5. **Transactions are your unit of correctness.** If multiple tables must change together, they go in one transaction. Partial writes = corrupted state.
+
+---
+
+<div align="center">
+
+**[⬆ Back to Top](#-e-commerce-platform-full-stack)** · Production-shape correctness for real e-commerce.
+
+</div>
