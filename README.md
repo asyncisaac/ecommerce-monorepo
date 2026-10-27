@@ -13,19 +13,13 @@
 [![Docker](https://img.shields.io/badge/Docker-2CA5E0?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![Vitest](https://img.shields.io/badge/Vitest-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
 
-**[🚀 Live Demo](https://your-ecommerce-demo.com)** · **[👤 Demo Login](#-demo-credentials)** · **[⭐ Architecture](#-architecture)** · **[🛠️ Run Locally](#-running-locally)**
+**[🛠️ Run Locally](#-running-locally)** · **[⭐ Architecture](#-architecture)** · **[🔑 Sample Local Accounts](#-sample-local-accounts)**
 
 </div>
 
 ---
 
-> ⚠️ **Screenshots coming soon.** Replace with real product screenshots, cart, checkout, admin dashboard:
-> ```
-> ![Storefront](https://your-image-host.com/storefront.png)
-> ![Product Page](https://your-image-host.com/product-page.png)
-> ![Checkout Flow](https://your-image-host.com/checkout.png)
-> ![Admin Dashboard](https://your-image-host.com/admin-dashboard.png)
-> ```
+> **Screenshots:** Not published yet.
 
 ---
 
@@ -204,23 +198,15 @@ sequenceDiagram
 
 ---
 
-## 🚀 Live Demo
+## 🚀 Hosted Demo
 
-> ⚠️ **Deploy first, then fill this in.**
->
-> | Resource | URL |
-> |----------|-----|
-> | Storefront | `https://your-ecommerce-demo.com` |
-> | Backend API | `https://your-ecommerce-demo.com/api` |
-> | Health check | `https://your-ecommerce-demo.com/healthz` |
->
-> Stripe is in **test mode** on the demo — use card `4242 4242 4242 4242` + any future date/CVC to test a successful checkout.
+A hosted demo is not published yet. Follow the [local setup](#-running-locally) to run the storefront and API.
 
 ---
 
-## 🔑 Demo Credentials
+## 🔑 Sample Local Accounts
 
-Seed data includes these accounts (when you run the seed):
+These accounts are created by `npm run seed` and are for the locally running app:
 
 | Role | Email | Password |
 |------|-------|----------|
@@ -353,15 +339,16 @@ npm run test
 | **Next.js Frontend** | Vercel | One-click Next.js deploy, hooks into repo |
 | **Express API** | Render / Railway / Fly.io | Node service, port `PORT` |
 | **PostgreSQL** | Supabase / Neon / Render Managed | Connection pooling recommended |
-| **Stripe Webhook URL** | Point at `https://your-api.com/api/webhooks/stripe` | **Important**: webhook must be registered in Stripe dashboard with matching signing secret |
+| **Stripe Webhook URL** | Register the deployed API's `/api/webhooks/stripe` endpoint | **Important**: webhook must be registered in Stripe dashboard with matching signing secret |
 
 ### Environment Required in Production
+Set `APP_URL` and `CORS_ORIGIN` to the deployed storefront origin.
 ```env
 DATABASE_URL=postgresql://user:pass@host:5432/db
 JWT_SECRET=long_random_string
-APP_URL=https://your-store.com
+APP_URL=
 COOKIE_SECURE=true
-CORS_ORIGIN=https://your-store.com
+CORS_ORIGIN=
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 ```
